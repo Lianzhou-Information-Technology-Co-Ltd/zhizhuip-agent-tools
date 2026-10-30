@@ -15,7 +15,7 @@
 
 先安装 Node.js 20 或更新版本（自带 npm/npx）和 Git，并准备蜘蛛 IP API Key。以下两种方式任选一种。
 
-**实际安装必须通过 API Key 验证。** 安装器优先读取 `ZHIZHUIP_TOKEN`；未设置时在交互终端输入，显示首尾各 4 位，中间用星号遮住。写入运行文件、Skill、凭证和客户端配置之前，会查询只读用户信息接口验证 Key；无效 Key、网络错误、超时或异常响应都会停止安装，保留已有配置与凭证。非交互执行必须提前设置 `ZHIZHUIP_TOKEN`，并用 `--agents` 指定客户端；`--help`、`--list`、`--dry-run` 不需要 Key，也不发送验证请求。
+**实际安装必须通过 API Key 验证。** 安装器优先读取 `ZHIZHUIP_TOKEN`；未设置时在交互终端输入，显示首尾各 4 位，中间用星号遮住。写入运行文件、Skill、凭证和客户端配置之前，会查询只读用户信息接口验证 Key；验证失败时保留已有配置与凭证。未提供环境变量 Key 时，手动交互输入失败会提示重新输入，可按 `Ctrl+C` 取消；验证通过后才安装。使用环境变量 Key 或非交互执行时，验证失败以退出码 1 结束，不再询问输入。非交互执行必须提前设置 `ZHIZHUIP_TOKEN`，并用 `--agents` 指定客户端；`--help`、`--list`、`--dry-run` 不需要 Key，也不发送验证请求。
 
 **方式一：从 GitHub 自动下载并安装。** npx 会获取远程仓库代码、安装依赖并构建，再启动安装器；无需手动克隆或另行运行 `npm ci`：
 
@@ -34,7 +34,7 @@ node dist/src/index.js install
 
 `git clone` 下载项目，`cd` 进入源码目录；`npm ci` 按锁文件安装依赖，并自动构建出 `dist/`，最后一条命令安装 Skill 与 MCP。已有本地源码时，进入包含 `package.json` 和 `package-lock.json` 的目录，从 `npm ci` 开始执行。
 
-未指定客户端时会提示选择 Agent；环境变量已有 Key 时不再询问，否则在本机输入并核对首尾字符。默认安装到用户全局范围，所有项目可用。需要显式设置 `ZHIZHUIP_TOKEN` 时，完整的 PowerShell 和 macOS/Linux 示例见[使用指南](USAGE.md#通过环境变量提供必填-api-key)。不要把真实 Key 放在命令参数、Skill 或聊天里。
+未指定客户端时会提示选择 Agent；环境变量已有 Key 时直接验证，失败则退出；未设置时在交互终端输入并核对首尾字符。默认安装到用户全局范围，所有项目可用。需要显式设置 `ZHIZHUIP_TOKEN` 时，完整的 PowerShell 和 macOS/Linux 示例见[使用指南](USAGE.md#通过环境变量提供必填-api-key)。不要把真实 Key 放在命令参数、Skill 或聊天里。
 
 下面是源码方式的常用参数，在 `zhizhuip-agent-tools` 源码目录执行；GitHub 方式可将 `node dist/src/index.js` 替换为上面的完整 npx 命令（不含末尾的 `install`）：
 
@@ -96,7 +96,7 @@ token 就是网站 API Keys 页面生成的 API Key：
 2. 新建一个 Key，复制以 `sk-` 开头的完整内容。
 3. 统一安装时在终端输入并核对显示的首尾字符，通过验证后才保存；手工配置时填入该服务的 `ZHIZHUIP_TOKEN`。
 
-安装验证提示 Key 无效时，到 API Keys 页面核对或重新生成后，重新执行安装命令。验证失败不会保存新 Key。已安装的 Key 后续被删除时，工具调用也会提示无效；更新 Key 后重载 MCP。Key 等同于账号权限，不要分享给他人或写进客户端代码。
+安装验证提示 Key 无效时，到 API Keys 页面核对或重新生成后，在手动交互提示中重新输入；使用环境变量 Key 或非交互执行时，需更新 `ZHIZHUIP_TOKEN` 后重新运行命令。验证失败不会保存新 Key。已安装的 Key 后续被删除时，工具调用也会提示无效；更新 Key 后重载 MCP。Key 等同于账号权限，不要分享给他人或写进客户端代码。
 
 ## 仅配置 MCP（手工方式）
 

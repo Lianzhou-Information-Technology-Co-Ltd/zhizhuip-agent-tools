@@ -40,7 +40,8 @@ export const INSTALL_HELP = `用法：zhizhuip-agent-tools install [选项]
   --help, -h          显示帮助
 实际安装必须提供 API Key：优先读取 ZHIZHUIP_TOKEN，未设置时在终端输入，显示首尾各 4 位，中间遮罩。
 非交互执行必须设置 ZHIZHUIP_TOKEN 并指定 --agents；--help、--list、--dry-run 不需要 Key。
-安装前请求用户信息接口验证 Key；验证失败或无法连接时停止，不修改已有配置和凭证。
+安装前请求用户信息接口验证 Key；交互输入失败可重新输入，Ctrl+C 取消；环境变量 Key 验证失败则退出。
+验证通过前不修改已有配置和凭证，--help、--list、--dry-run 不发送验证请求。
 固定运行目录和凭证文件位于 ~/.zhizhuip-agent-tools/。
 project 配置只对当前目录生效；Cline 和 Windsurf 仅支持 global。
 安装后需重新加载客户端；安装成功不代表真实代理已通过联网测试。
@@ -490,11 +491,11 @@ async function validateToken(token: string, c: InstallContext): Promise<void> {
     } catch { /* 非 JSON 响应在下面统一拒绝，不输出原文。 */ }
   } catch (error) {
     throw new Error(error instanceof Error && error.name === 'TimeoutError'
-      ? 'API Key 验证失败：请求超时，未执行安装。请检查网络后重新运行。'
-      : 'API Key 验证失败：无法连接验证接口，未执行安装。请检查网络和接口地址后重新运行。');
+      ? 'API Key 验证失败：请求超时，未执行安装。请检查网络。'
+      : 'API Key 验证失败：无法连接验证接口，未执行安装。请检查网络和接口地址。');
   }
   if ([401, 403].includes(response.status) || [401, 403, '401', '403'].includes(body?.code as number | string)) {
-    throw new Error('API Key 验证失败：Key 无效或无权限，未执行安装。请核对 Key 后重新运行。');
+    throw new Error('API Key 验证失败：Key 无效或无权限，未执行安装。请核对 Key。');
   }
   if (!response.ok) throw new Error(`API Key 验证失败：服务返回 HTTP ${response.status}，未执行安装。请稍后重试。`);
   if (!body || (body.code !== 1 && body.code !== '1')) {
@@ -507,7 +508,7 @@ async function validateToken(token: string, c: InstallContext): Promise<void> {
   }
 }
 
-/** 运行安装子命令；仅在用户选择完成后写入目标目录。
+/** 运行安装子命令，手动输入验证失败可重输，验证通过后才写入目标目录。
  *
  * @param argv install 后面的参数。
  * @param context 可选环境覆盖；省略时使用当前机器和同包产物。
@@ -549,10 +550,26 @@ export async function runInstall(argv: string[], context: Partial<InstallContext
       }
       c.output('仅预览，未写文件或读取 Key。'); return valid ? 0 : 1;
     }
-    const token = (c.env.ZHIZHUIP_TOKEN?.trim() || (c.interactive ? await c.secret() : '')).trim();
-    if (!token) throw new Error('缺少 API Key；请在终端输入，非交互模式请设置 ZHIZHUIP_TOKEN。');
-    c.output('正在验证 API Key…');
-    await validateToken(token, c);
+    let token = c.env.ZHIZHUIP_TOKEN?.trim() || '';
+    const promptForToken = c.interactive && !token;
+    // 仅手动输入允许重试，环境变量失败时退出，避免启动器继续优先使用旧 Key。
+    while (true) {
+      if (promptForToken) token = (await c.secret()).trim();
+      if (!token) {
+        if (!promptForToken) throw new Error('缺少 API Key；请在终端输入，非交互模式请设置 ZHIZHUIP_TOKEN。');
+        c.output('API Key 不能为空，请重新输入；Ctrl+C 取消。');
+        continue;
+      }
+      c.output('正在验证 API Key…');
+      try {
+        await validateToken(token, c);
+        break;
+      } catch (error) {
+        if (!promptForToken || !(error instanceof Error) || !error.message.startsWith('API Key 验证失败')) throw error;
+        c.output(error.message);
+        c.output('请核对 Key 或网络后重新输入；Ctrl+C 取消。');
+      }
+    }
     c.output('API Key 验证通过，开始安装。');
     const results = installFromPlan(plan, token, c);
     for (const result of results) {

@@ -376,10 +376,16 @@ describe('安装前验证 API Key', () => {
     expect(c.messages.join('\n')).not.toContain('private-profile');
   });
 
-  it('空白交互输入不请求验证、不写文件', async () => {
-    const c = fixture(); c.interactive = true; c.secret = vi.fn(async () => '   ');
-    expect(await runInstall(['--agents', 'cursor'], c)).toBe(1);
-    expect(c.fetch).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
+  it('空白交互输入不请求验证，重新输入非空 Key 后才能安装', async () => {
+    const c = fixture(); c.interactive = true;
+    c.secret = vi.fn().mockResolvedValueOnce('   ').mockImplementationOnce(async () => {
+      expect(c.fetch).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
+      return ' fixture-key ';
+    }).mockRejectedValue(new Error('已取消安装。'));
+    expect(await runInstall(['--agents', 'cursor'], c)).toBe(0);
+    expect(c.secret).toHaveBeenCalledTimes(2); expect(c.fetch).toHaveBeenCalledOnce();
+    expect(c.messages.join('\n')).toContain('API Key 不能为空');
+    expect(new Headers(vi.mocked(c.fetch).mock.calls[0][1]?.headers).get('token')).toBe('fixture-key');
   });
 
   it('回环 HTTP 验证成功后安装；重新输入错误 Key 时不覆盖旧安装', async () => {
@@ -410,6 +416,85 @@ describe('安装前验证 API Key', () => {
       backend.closeAllConnections();
       await new Promise<void>((resolve, reject) => backend.close(error => error ? reject(error) : resolve()));
     }
+  });
+});
+
+describe('交互输入验证失败后重试', () => {
+  it('连续输错后留在同一次安装，只有最后验证通过的 Key 被保存', async () => {
+    const c = fixture(); c.interactive = true; c.ask = vi.fn(async () => 'cursor'); c.beforeWrite = vi.fn();
+    const tokens = ['fixture-bad-one', 'fixture-bad-two', 'fixture-valid'];
+    c.secret = vi.fn().mockResolvedValueOnce(tokens[0]).mockResolvedValueOnce(tokens[1])
+      .mockResolvedValueOnce(tokens[2]).mockRejectedValue(new Error('已取消安装。'));
+    let requests = 0;
+    c.fetch = vi.fn(async (_input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      expect(c.beforeWrite).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
+      expect(new Headers(init?.headers).get('token')).toBe(tokens[requests]);
+      requests++;
+      return new Response(JSON.stringify(requests < 3 ? { code: 401, msg: 'private-response' } : { code: 1, data: { id: 1 } }));
+    });
+    expect(await runInstall([], c)).toBe(0);
+    expect(c.ask).toHaveBeenCalledOnce(); expect(c.secret).toHaveBeenCalledTimes(3); expect(c.fetch).toHaveBeenCalledTimes(3);
+    expect(c.beforeWrite).toHaveBeenCalled();
+    expect(JSON.parse(readFileSync(plan(c, ['cursor']).credentialPath, 'utf8')).token).toBe(tokens[2]);
+    expect(c.messages.filter(message => message.startsWith('API Key 验证失败'))).toHaveLength(2);
+    expect(c.messages.filter(message => message === 'API Key 验证通过，开始安装。')).toHaveLength(1);
+    for (const secret of [...tokens, 'private-response']) expect(c.messages.join('\n')).not.toContain(secret);
+  });
+
+  it.each([
+    { name: '网络断开', error: new Error('private-response') },
+    { name: '超时', error: new DOMException('private-response', 'TimeoutError') },
+    { name: '非 JSON 响应' },
+  ])('$name 后等待用户重新输入，不自动重复请求', async ({ error }) => {
+    const c = fixture(); c.interactive = true; c.beforeWrite = vi.fn();
+    c.secret = vi.fn().mockResolvedValueOnce('fixture-key').mockImplementationOnce(async () => {
+      expect(c.fetch).toHaveBeenCalledOnce(); expect(c.beforeWrite).not.toHaveBeenCalled();
+      expect(readdirSync(c.home)).toEqual([]);
+      return 'fixture-key';
+    }).mockRejectedValue(new Error('已取消安装。'));
+    let requests = 0;
+    c.fetch = vi.fn(async () => {
+      if (++requests === 1) {
+        if (error) throw error;
+        return new Response('<html>private-response</html>');
+      }
+      return new Response('{"code":1,"data":{"id":1}}');
+    });
+    expect(await runInstall(['--agents', 'cursor'], c)).toBe(0);
+    expect(c.fetch).toHaveBeenCalledTimes(2); expect(c.secret).toHaveBeenCalledTimes(2);
+    expect(c.messages.join('\n')).toContain('请核对 Key 或网络后重新输入；Ctrl+C 取消。');
+    expect(c.messages.join('\n')).not.toContain('private-response');
+  });
+
+  it('失败后取消不再验证，也不覆盖已有安装', async () => {
+    const c = fixture(); c.interactive = true; c.beforeWrite = vi.fn(); const p = plan(c, ['cursor']);
+    const paths = [p.credentialPath, p.targets[0].configPath, join(p.targets[0].skillPath, 'SKILL.md')];
+    const contents = ['{"token":"previous-key"}', '{"mcpServers":{"other":{"command":"keep"}}}', '# Existing Skill'];
+    paths.forEach((path, index) => put(path, contents[index]));
+    const files = readdirSync(c.home, { recursive: true }).sort();
+    c.secret = vi.fn().mockResolvedValueOnce('fixture-bad-key').mockRejectedValue(new Error('已取消安装。'));
+    c.fetch = vi.fn(async () => new Response('{"code":401}', { status: 401 }));
+    expect(await runInstall(['--agents', 'cursor'], c)).toBe(1);
+    expect(c.fetch).toHaveBeenCalledOnce(); expect(c.secret).toHaveBeenCalledTimes(2);
+    expect(c.beforeWrite).not.toHaveBeenCalled();
+    expect(paths.map(path => readFileSync(path, 'utf8'))).toEqual(contents);
+    expect(readdirSync(c.home, { recursive: true }).sort()).toEqual(files);
+    expect(c.messages.at(-1)).toBe('已取消安装。');
+  });
+
+  it('环境变量 Key 失败时即使终端可交互也退出，不切换输入来源', async () => {
+    const c = fixture(); c.interactive = true; c.env.ZHIZHUIP_TOKEN = 'fixture-env-key';
+    c.fetch = vi.fn(async () => new Response('{"code":401}', { status: 401 }));
+    expect(await runInstall(['--agents', 'cursor'], c)).toBe(1);
+    expect(c.fetch).toHaveBeenCalledOnce(); expect(c.secret).not.toHaveBeenCalled();
+    expect(readdirSync(c.home)).toEqual([]); expect(c.env.ZHIZHUIP_TOKEN).toBe('fixture-env-key');
+  });
+
+  it('接口配置异常直接退出，不把重新输入 Key 当作配置修复', async () => {
+    const c = fixture(); c.interactive = true; c.env.ZHIZHUIP_TIMEOUT_MS = 'invalid';
+    expect(await runInstall(['--agents', 'cursor'], c)).toBe(1);
+    expect(c.secret).toHaveBeenCalledOnce(); expect(c.fetch).not.toHaveBeenCalled();
+    expect(readdirSync(c.home)).toEqual([]);
   });
 });
 
