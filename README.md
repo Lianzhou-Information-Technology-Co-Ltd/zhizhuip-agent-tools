@@ -7,7 +7,7 @@
 ### 1. 准备环境和 API Key
 
 - 安装 [Node.js 20 或更新版本](https://nodejs.org/en/download)和 [Git](https://git-scm.com/downloads)，确保终端能运行 `node`、`npx`、`git`，并能访问 GitHub、npm 和蜘蛛 IP 服务。
-- 登录[蜘蛛 IP 官网](https://www.zhizhuip.com/)，从头像菜单进入 **API Keys**，创建并复制 API Key。它是安装必填项，输入到安装终端即可，无需发给 AI。
+- 登录[蜘蛛 IP 官网](https://www.zhizhuip.com/)，从头像菜单进入 **API Keys**，创建并复制 API Key。它是安装必填项，输入到安装终端即可，无需发给 AI。[查看获取方法](https://develop.zhizhuip.com/9518263m0)。
 
 ### 2. 运行安装命令
 
