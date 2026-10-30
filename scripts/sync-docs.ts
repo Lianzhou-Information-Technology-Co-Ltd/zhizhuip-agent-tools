@@ -4,8 +4,9 @@ import { buildSpec } from './build-spec.js';
 import { parsePage, placePages } from './lib/merge.js';
 
 const SITE = 'https://develop.zhizhuip.com';
-const SESSION_PAGE = '3837564m0.md'; // 流量期限与不限流量产品的 Session 说明相同，只取这一页
+const SESSION_PAGE = '3837564m0.md'; // 上游 Session 原页，下载后仅作为待审查快照。
 const PAGES = new URL('../spec/pages/', import.meta.url);
+const SOURCES = new URL('../spec/source/', import.meta.url);
 
 async function get(path: string): Promise<string> {
   const res = await fetch(`${SITE}/${path}`, { signal: AbortSignal.timeout(30_000) });
@@ -40,6 +41,8 @@ for (const f of (readdirSync(PAGES, { recursive: true }) as string[]).map(f => f
     console.error(`删除已下线页面 ${f}`);
   }
 }
-writeFileSync(new URL('../spec/dynamic-proxy-session.md', import.meta.url), await get(SESSION_PAGE));
-console.error(`已下载 ${placed.size} 个接口页与 Session 说明页`);
+// Session 对外资源包含人工校正，源下载不能覆盖已核实的行为说明。
+mkdirSync(SOURCES, { recursive: true });
+writeFileSync(new URL('dynamic-proxy-session.md', SOURCES), await get(SESSION_PAGE));
+console.error(`已下载 ${placed.size} 个接口源页与 Session 待审查快照；对外 Session 资源未覆盖`);
 buildSpec();

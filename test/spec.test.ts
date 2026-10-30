@@ -74,8 +74,8 @@ describe('spec/tools.json', () => {
     expect(dyn.inputSchema.properties.product.enum).toEqual(DYNAMIC);
     expect(Object.keys(dyn.inputSchema.properties).sort()).toEqual(['bill_timelen', 'conpon_id', 'num', 'product']);
     expect(dyn.inputSchema.required).toEqual(['product', 'num']);
-    expect(dyn.inputSchema.properties.bill_timelen.enum).toEqual([1, 2, 3]);
-    expect(dyn.inputSchema.properties.bill_timelen.description).toMatch(/dynamic-monthly 时必填/);
+    expect(dyn.inputSchema.properties.bill_timelen.enum).toEqual([1]);
+    expect(dyn.inputSchema.properties.bill_timelen.description).toMatch(/dynamic-monthly.*省略默认/);
     expect(dyn.inputSchema.properties.bill_timelen.description).toMatch(/dynamic-no-expiry 不要传/);
 
     const ip = byName('order_buy_time_ip');
@@ -168,7 +168,7 @@ describe('spec/tools.json', () => {
     expect(add.inputSchema.properties.agree.description).toMatch(/不传默认 SOCKS5/);
     expect(add.inputSchema.properties.agree.description).not.toMatch(/下必填/);
     expect(add.inputSchema.properties.num.description).toMatch(/1 到 500/);
-    expect(add.inputSchema.properties.changeInterval.description).toMatch(/5 到 120/);
+    expect(add.inputSchema.properties.changeInterval.description).toMatch(/1 到 120/);
     expect(add.inputSchema.properties.state.description).toMatch(/名称/);
     expect(add.inputSchema.properties.city.description).toMatch(/名称/);
     expect(add.inputSchema.properties.spec).toMatchObject({ type: 'integer' });
@@ -216,7 +216,7 @@ describe('spec/tools.json', () => {
     expect(byName('sub_account_add').inputSchema.properties.country.description).not.toMatch(/如 US。/);
   });
 
-  it('下单与续费工具的 conpon_id 都是 integer，与 coupon_list 返回的 id 一致；IPv6 购买与续费都没有这个参数', () => {
+  it('下单与续费工具的 conpon_id 都是 integer，与 coupon_list 返回的 conpon_id 一致；IPv6 购买与续费都没有这个参数', () => {
     for (const n of ['order_buy_dynamic', 'order_buy_time_ip', 'order_renew']) {
       expect(byName(n).inputSchema.properties.conpon_id.type, n).toBe('integer');
     }

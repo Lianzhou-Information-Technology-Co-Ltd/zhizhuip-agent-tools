@@ -9,10 +9,15 @@ export interface SetupOptions {
 }
 
 const NAME = 'zhizhuip';
-const PACKAGE = 'github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-mcp';
+const PACKAGE = 'github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools';
 const ENV = 'ZHIZHUIP_TOKEN';
 
-/** 生成各客户端可直接粘贴的配置片段，只产出文本，不碰任何文件 */
+/**
+ * 生成手工接入 MCP 的客户端配置片段，不修改配置文件。
+ *
+ * @param o 启动路径、占位或实际 token、只读模式、下载方式及操作系统。
+ * @return string，各客户端配置文本；提供 token 时输出会包含该值。
+ */
 export function renderSetup(o: SetupOptions): string {
   const script = o.indexPath.replace(/\\/g, '/');
   const token = o.token ?? '你的token';
@@ -31,21 +36,21 @@ export function renderSetup(o: SetupOptions): string {
     : o.platform === 'darwin'
       ? '~/Library/Application Support/Claude/claude_desktop_config.json'
       : '~/.config/Claude/claude_desktop_config.json';
-  const windsurfPath = win ? '%APPDATA%\\devin\\mcp_config.json' : '~/.config/devin/mcp_config.json';
+  const windsurfPath = '~/.codeium/windsurf/mcp_config.json';
 
   return [
-    `zhizhuip-mcp 客户端配置片段${o.readonly ? '（只读模式）' : '（全部工具）'}`,
+    `zhizhuip-agent-tools 客户端配置片段${o.readonly ? '（只读模式）' : '（全部工具）'}`,
     '',
     `服务名 ${NAME}；命令 ${command}；参数 ${JSON.stringify(args)}；环境变量 ${ENV}。`,
     ...(o.token ? [] : ['下面所有片段里请把 你的token 换成蜘蛛 IP 网站 API Keys 页面生成的 API Key，做法见 README。']),
-    'token 必须写在客户端配置里，终端里设置的环境变量不会传给客户端拉起的子进程。改完配置后重启对应客户端。',
+    '以下手工配置通过服务的 env 提供 token；客户端不一定继承另一个终端的环境变量。统一安装器由启动器读取私有凭证文件。配置完成后重新加载对应客户端。',
     '',
     '== Claude Code ==',
     `claude mcp add -s user -e ${ENV}=${token} ${NAME} -- ${cli}`,
     '',
     '== Codex CLI ==',
     `codex mcp add ${NAME} --env ${ENV}=${token} -- ${cli}`,
-    '或写进 ~/.codex/config.toml：',
+    '或写进 $CODEX_HOME/config.toml（默认 ~/.codex/config.toml）：',
     `[mcp_servers.${NAME}]`,
     `command = "${command}"`,
     `args = ${tomlArgs}`,
@@ -59,7 +64,7 @@ export function renderSetup(o: SetupOptions): string {
     '== Cursor ==（全局 ~/.cursor/mcp.json，或项目内 .cursor/mcp.json）',
     standard,
     '',
-    `== Windsurf / Devin 桌面版 ==（${windsurfPath}；旧版 Windsurf 为 ~/.codeium/windsurf/mcp_config.json）`,
+    `== 经典 Windsurf ==（${windsurfPath}；不代表 Devin 新路径）`,
     standard,
     '',
     '== VS Code ==（命令面板 "MCP: Open User Configuration" 打开的 mcp.json，或项目内 .vscode/mcp.json）',

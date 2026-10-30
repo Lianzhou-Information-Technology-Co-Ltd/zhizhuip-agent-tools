@@ -1,0 +1,2045 @@
+{
+  "description": "离线模拟数据；44 项用例及 HTTP 预期人工编写，不读取 spec 生成参数或预期。products 逐项列出要实际调用的产品变体；form 是独立的后端表单预期。",
+  "cases": [
+    {
+      "name": "bandwidth_detail",
+      "method": "GET",
+      "path": "/externalapi/bandwidth/bandwidthNumDetail",
+      "args": {
+        "subAccount": "71"
+      },
+      "form": {
+        "subAccount": "71"
+      },
+      "products": {
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "sub_account": "71",
+          "bandwidth_num": 20,
+          "expire_time": 1796000000
+        }
+      }
+    },
+    {
+      "name": "bandwidth_package_list",
+      "method": "GET",
+      "path": "/externalapi/bandwidth/getBandwidthList",
+      "args": {
+        "country": "US"
+      },
+      "form": {
+        "country": "US"
+      },
+      "products": {
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": [
+          {
+            "bandwidth_num": 20,
+            "price": "18.00"
+          },
+          {
+            "bandwidth_num": 50,
+            "price": "39.00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bandwidth_trend",
+      "method": "GET",
+      "path": "/externalapi/bandwidth/monitoringTrend",
+      "args": {
+        "subAccount": "71",
+        "trend_type": 2,
+        "startTime": 1793232000,
+        "endTime": 1793235600
+      },
+      "form": {
+        "subAccount": "71",
+        "trend_type": "2",
+        "startTime": "1793232000",
+        "endTime": "1793235600"
+      },
+      "products": {
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "unit": "Mbps",
+          "points": [
+            {
+              "time": 1793232000,
+              "bandwidth": 3.5
+            },
+            {
+              "time": 1793235600,
+              "bandwidth": 4.2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "city_list",
+      "method": "GET",
+      "path": "/externalapi/common/cityList",
+      "args": {
+        "country_id": 225,
+        "country_code": "US"
+      },
+      "form": {
+        "country_id": "225",
+        "country_code": "US"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "args": {
+            "state_id": 12
+          },
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0",
+            "state_id": "12"
+          }
+        },
+        "dynamic-monthly": {
+          "args": {
+            "state_id": 12
+          },
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1",
+            "state_id": "12"
+          }
+        },
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        },
+        "static-ipv6": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1",
+            "version": "6"
+          }
+        },
+        "datacenter": {
+          "form": {
+            "type": "2",
+            "status": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": [
+          {
+            "id": 34,
+            "name": "Los Angeles",
+            "code": "Los Angeles"
+          }
+        ]
+      }
+    },
+    {
+      "name": "country_list",
+      "method": "GET",
+      "path": "/externalapi/common/countryList",
+      "args": {},
+      "form": {},
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        },
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        },
+        "static-ipv6": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1",
+            "version": "6"
+          }
+        },
+        "datacenter": {
+          "form": {
+            "type": "2",
+            "status": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": [
+          {
+            "id": 225,
+            "name": "美国",
+            "code": "US"
+          },
+          {
+            "id": 81,
+            "name": "德国",
+            "code": "DE"
+          }
+        ]
+      }
+    },
+    {
+      "name": "coupon_list",
+      "method": "GET",
+      "path": "/externalapi/conpons/conponList",
+      "args": {
+        "type": 0,
+        "status": 0
+      },
+      "form": {
+        "type": "0",
+        "status": "0"
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": [
+          {
+          "conpon_id": 73,
+            "name": "模拟流量券",
+            "discount": "5.00",
+            "status": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "flow_package_list",
+      "method": "GET",
+      "path": "/externalapi/device/userSetMeal",
+      "args": {
+        "page": 1,
+        "pagesize": 20
+      },
+      "form": {
+        "page": "1",
+        "pagesize": "20"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "rows": [
+            {
+              "id": 61,
+              "total_flow": 20,
+              "used_flow": 2,
+              "remaining_flow": 18
+            }
+          ],
+          "total": 1
+        }
+      }
+    },
+    {
+      "name": "ip_booking",
+      "method": "POST",
+      "path": "/externalapi/product_order/bookingIPArea",
+      "args": {
+        "num": 2,
+        "country": "美国"
+      },
+      "form": {
+        "num": "2",
+        "country": "美国"
+      },
+      "products": {
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        },
+        "datacenter": {
+          "form": {
+            "type": "2",
+            "status": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "booking_id": "B-17",
+          "num": 2,
+          "state": "pending"
+        }
+      }
+    },
+    {
+      "name": "ip_range_status",
+      "method": "GET",
+      "path": "/externalapi/inventory_status/ipStrStatus",
+      "args": {
+        "country_code": "US",
+        "city_code": "Los Angeles",
+        "ip_str": "192.0.2",
+        "exclude_ip_str": "198.51.100",
+        "page": 1,
+        "pageSize": 20
+      },
+      "form": {
+        "country_code": "US",
+        "city_code": "Los Angeles",
+        "ip_str": "192.0.2",
+        "exclude_ip_str": "198.51.100",
+        "page": "1",
+        "pageSize": "20"
+      },
+      "products": {
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "rows": [
+            {
+              "ip_str": "192.0.2",
+              "available": 12,
+              "country": "US"
+            }
+          ],
+          "total": 1
+        }
+      }
+    },
+    {
+      "name": "main_account_flow",
+      "method": "GET",
+      "path": "/externalapi/total/userFlowTotal",
+      "args": {},
+      "form": {},
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "total_flow": 20,
+          "used_flow": 2.5,
+          "remaining_flow": 17.5
+        }
+      }
+    },
+    {
+      "name": "main_account_switch_token",
+      "method": "GET",
+      "path": "/externalapi/device/userListEnabled",
+      "args": {},
+      "form": {},
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "token": "SIMULATED_SWITCH_TOKEN",
+          "enabled": 1
+        }
+      }
+    },
+    {
+      "name": "official_price",
+      "method": "GET",
+      "path": "/externalapi/tool/getOriginCustomPriceInfo",
+      "args": {},
+      "form": {},
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "dynamic": [
+            {
+              "num": 10,
+              "price": "28.00"
+            }
+          ],
+          "static": [
+            {
+              "country": "US",
+              "timelen": 1,
+              "price": "12.00"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "order_bandwidth_upgrade",
+      "method": "POST",
+      "path": "/externalapi/product_order/bandwidthUpgradeOrder",
+      "args": {
+        "bandwidth_num": 50,
+        "sub_accounts": [
+          "71",
+          "72"
+        ]
+      },
+      "form": {
+        "bandwidth_num": "50",
+        "sub_accounts[0]": "71",
+        "sub_accounts[1]": "72"
+      },
+      "products": {
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "order_id": "UP-18",
+          "bandwidth_num": 50,
+          "sub_accounts": [
+            "71",
+            "72"
+          ]
+        }
+      }
+    },
+    {
+      "name": "order_buy_dynamic",
+      "method": "POST",
+      "path": "/externalapi/product_order/createProductOrder",
+      "args": {
+        "num": 10,
+        "conpon_id": 73
+      },
+      "form": {
+        "num": "10",
+        "conpon_id": "73"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "args": {
+            "bill_timelen": 1
+          },
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1",
+            "bill_timelen": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "order_id": "FLOW-19",
+          "num": 10,
+          "pay_money": "20.00"
+        }
+      }
+    },
+    {
+      "name": "order_buy_dynamic_bandwidth",
+      "method": "POST",
+      "path": "/externalapi/product_order/createProductOrder",
+      "args": {
+        "country": "US",
+        "timelen": 1,
+        "bandwidth_num": 10,
+        "use_random_username": 1,
+        "conpon_id": 74
+      },
+      "form": {
+        "country": "US",
+        "timelen": "1",
+        "bandwidth_num": "10",
+        "use_random_username": "1",
+        "conpon_id": "74",
+        "product_type_id": "11"
+      },
+      "fixedProduct": "dynamic-bandwidth",
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "order_id": "BW-20",
+          "sub_account": 901,
+          "bandwidth_num": 10,
+          "pay_money": "80.00"
+        }
+      }
+    },
+    {
+      "name": "order_buy_ipv6",
+      "method": "POST",
+      "path": "/externalapi/product_order/createIpv6Order",
+      "args": {
+        "num": 1,
+        "country": "US",
+        "timelen": 1,
+        "agree": "SOCKS5",
+        "city": "Los Angeles",
+        "verder_order_id": "SIMULATED-V6-21",
+        "ip_str": "2001:db8",
+        "remark": "离线购买"
+      },
+      "form": {
+        "num": "1",
+        "country": "US",
+        "timelen": "1",
+        "agree": "SOCKS5",
+        "city": "Los Angeles",
+        "verder_order_id": "SIMULATED-V6-21",
+        "ip_str": "2001:db8",
+        "remark": "离线购买",
+        "type": "1",
+        "status": "1",
+        "native": "1",
+        "version": "6"
+      },
+      "fixedProduct": "static-ipv6",
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "order_id": "V6-21",
+          "sub_accounts": [
+            "81"
+          ],
+          "pay_money": "10.00"
+        }
+      }
+    },
+    {
+      "name": "order_buy_test_ip",
+      "method": "POST",
+      "path": "/externalapi/product_order/createTestOrder",
+      "args": {
+        "num": 1,
+        "country": "US",
+        "agree": "HTTP",
+        "city": "Los Angeles",
+        "use_random_username": 1,
+        "ip_str": "192.0.2",
+        "exclude_ip_str": "198.51.100"
+      },
+      "form": {
+        "num": "1",
+        "country": "US",
+        "agree": "HTTP",
+        "city": "Los Angeles",
+        "use_random_username": "1",
+        "ip_str": "192.0.2",
+        "exclude_ip_str": "198.51.100"
+      },
+      "products": {
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        },
+        "datacenter": {
+          "form": {
+            "type": "2",
+            "status": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "order_id": "TRIAL-22",
+          "sub_accounts": [
+            "71"
+          ],
+          "expire_time": 1793400000
+        }
+      }
+    },
+    {
+      "name": "order_buy_time_ip",
+      "method": "POST",
+      "path": "/externalapi/product_order/createProductOrder",
+      "args": {
+        "num": 2,
+        "country": "US",
+        "timelen": 1,
+        "agree": "SOCKS5",
+        "conpon_id": 75,
+        "use_ip_port": 1,
+        "verder_order_id": "SIMULATED-TIME-23",
+        "specifyIps": [
+          {
+            "ipStr": "192.0.2",
+            "count": 1
+          },
+          {
+            "ipStr": "198.51.100",
+            "count": 1
+          }
+        ],
+        "remark": "离线静态购买"
+      },
+      "form": {
+        "num": "2",
+        "country": "US",
+        "timelen": "1",
+        "agree": "SOCKS5",
+        "conpon_id": "75",
+        "use_ip_port": "1",
+        "verder_order_id": "SIMULATED-TIME-23",
+        "specifyIps[0][ipStr]": "192.0.2",
+        "specifyIps[0][count]": "1",
+        "specifyIps[1][ipStr]": "198.51.100",
+        "specifyIps[1][count]": "1",
+        "remark": "离线静态购买"
+      },
+      "products": {
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        },
+        "datacenter": {
+          "form": {
+            "type": "2",
+            "status": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "order_id": "TIME-23",
+          "sub_accounts": [
+            "71",
+            "72"
+          ],
+          "pay_money": "24.00"
+        }
+      }
+    },
+    {
+      "name": "order_dynamic_bandwidth_upgrade",
+      "method": "POST",
+      "path": "/externalapi/product_order/dynamicBandwidthUpgradeOrder",
+      "args": {
+        "sub_account_id": "901",
+        "bandwidth_num": 20,
+        "conpon_id": 74
+      },
+      "form": {
+        "sub_account_id": "901",
+        "bandwidth_num": "20",
+        "conpon_id": "74",
+        "product_type_id": "11"
+      },
+      "fixedProduct": "dynamic-bandwidth",
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "order_id": "BW-UP-24",
+          "sub_account": 901,
+          "bandwidth_num": 20,
+          "pay_money": "40.00"
+        }
+      }
+    },
+    {
+      "name": "order_refund_apply",
+      "method": "POST",
+      "path": "/externalapi/product_order/createOrderBack",
+      "args": {
+        "id": "71",
+        "remark": "业务结束，申请审核"
+      },
+      "form": {
+        "id": "71",
+        "remark": "业务结束，申请审核"
+      },
+      "products": {
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "application_id": "REF-25",
+          "status": "pending_review"
+        }
+      }
+    },
+    {
+      "name": "order_refund_dynamic_bandwidth_apply",
+      "method": "POST",
+      "path": "/externalapi/product_order/createOrderBack",
+      "args": {
+        "sub_account_id": "901",
+        "remark": "业务结束，申请审核"
+      },
+      "form": {
+        "sub_account_id": "901",
+        "remark": "业务结束，申请审核",
+        "product_type_id": "11"
+      },
+      "fixedProduct": "dynamic-bandwidth",
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "application_id": "BW-REF-26",
+          "sub_account": 901,
+          "status": "pending_review"
+        }
+      }
+    },
+    {
+      "name": "order_renew",
+      "method": "POST",
+      "path": "/externalapi/set_meal/renewOrder",
+      "args": {
+        "conpon_id": 75,
+        "content": [
+          {
+            "country": "US",
+            "ids": [
+              "71",
+              "72"
+            ],
+            "timelen": 1
+          },
+          {
+            "country": "DE",
+            "ids": [
+              "73"
+            ],
+            "timelen": 2
+          }
+        ]
+      },
+      "form": {
+        "conpon_id": "75",
+        "content[0][country]": "US",
+        "content[0][ids][0]": "71",
+        "content[0][ids][1]": "72",
+        "content[0][timelen]": "1",
+        "content[1][country]": "DE",
+        "content[1][ids][0]": "73",
+        "content[1][timelen]": "2"
+      },
+      "products": {
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        },
+        "datacenter": {
+          "form": {
+            "type": "2",
+            "status": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "order_id": "RENEW-27",
+          "renewed": [
+            "71",
+            "72",
+            "73"
+          ]
+        }
+      }
+    },
+    {
+      "name": "order_renew_dynamic_bandwidth",
+      "method": "POST",
+      "path": "/externalapi/set_meal/renewOrder",
+      "args": {
+        "sub_account_id": "901",
+        "timelen": 1,
+        "conpon_id": 74
+      },
+      "form": {
+        "sub_account_id": "901",
+        "timelen": "1",
+        "conpon_id": "74",
+        "product_type_id": "11"
+      },
+      "fixedProduct": "dynamic-bandwidth",
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "order_id": "BW-RENEW-28",
+          "sub_account": 901,
+          "expire_time": 1796000000,
+          "pay_money": "80.00"
+        }
+      }
+    },
+    {
+      "name": "order_renew_ipv6",
+      "method": "POST",
+      "path": "/externalapi/set_meal/renewOrderIpv6",
+      "args": {
+        "content": [
+          {
+            "country": "US",
+            "ids": [
+              "81",
+              "82"
+            ],
+            "timelen": 2
+          }
+        ]
+      },
+      "form": {
+        "content[0][country]": "US",
+        "content[0][ids][0]": "81",
+        "content[0][ids][1]": "82",
+        "content[0][timelen]": "2",
+        "type": "1",
+        "status": "1",
+        "native": "1",
+        "version": "6"
+      },
+      "fixedProduct": "static-ipv6",
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "order_id": "V6-RENEW-29",
+          "renewed": [
+            "81",
+            "82"
+          ]
+        }
+      }
+    },
+    {
+      "name": "provider_list",
+      "method": "GET",
+      "path": "/externalapi/device/providerList",
+      "args": {},
+      "form": {},
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": [
+          {
+            "id": 6,
+            "name": "模拟资源池",
+            "status": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "state_list",
+      "method": "GET",
+      "path": "/externalapi/common/stateList",
+      "args": {
+        "country_id": 225,
+        "country_code": "US"
+      },
+      "form": {
+        "country_id": "225",
+        "country_code": "US"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": [
+          {
+            "id": 12,
+            "name": "California",
+            "code": "California"
+          }
+        ]
+      }
+    },
+    {
+      "name": "sub_account_add",
+      "method": "POST",
+      "path": "/externalapi/device/accountAdd",
+      "args": {
+        "num": 1,
+        "changeInterval": 20,
+        "country": "US",
+        "state": "California",
+        "city": "Los Angeles",
+        "url": "https://example.invalid",
+        "use_random_username": 1,
+        "remark": "离线任务",
+        "agree": "SOCKS5",
+        "spec": 6
+      },
+      "form": {
+        "num": "1",
+        "changeInterval": "20",
+        "country": "US",
+        "state": "California",
+        "city": "Los Angeles",
+        "url": "https://example.invalid",
+        "use_random_username": "1",
+        "remark": "离线任务",
+        "agree": "SOCKS5",
+        "spec": "6"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "ids": [
+            "101"
+          ],
+          "accounts": [
+            {
+              "id": "101",
+              "username": "DEMO_USER_101",
+              "password": "DEMO_ONLY_101"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "sub_account_delete",
+      "method": "POST",
+      "path": "/externalapi/device/accountDelete",
+      "args": {
+        "id": "101"
+      },
+      "form": {
+        "id": "101"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "deleted": [
+            "101"
+          ]
+        }
+      }
+    },
+    {
+      "name": "sub_account_delete_batch",
+      "method": "POST",
+      "path": "/externalapi/device/accountDeleteList",
+      "args": {
+        "ids": "101,102"
+      },
+      "form": {
+        "ids": "101,102"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "deleted": [
+            "101",
+            "102"
+          ]
+        }
+      }
+    },
+    {
+      "name": "sub_account_flow",
+      "method": "GET",
+      "path": "/externalapi/total/subAccountFlow",
+      "args": {
+        "id": "101",
+        "start_date": "2026-10-01",
+        "end_date": "2026-10-02",
+        "spec": 6
+      },
+      "form": {
+        "id": "101",
+        "start_date": "2026-10-01",
+        "end_date": "2026-10-02",
+        "spec": "6"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": [
+          {
+            "date": "2026-10-01",
+            "flow": 1073741824
+          },
+          {
+            "date": "2026-10-02",
+            "flow": 536870912
+          }
+        ]
+      }
+    },
+    {
+      "name": "sub_account_limit_flow",
+      "method": "GET",
+      "path": "/externalapi/tool/accountLimitFlowDetail",
+      "args": {
+        "account": "101"
+      },
+      "form": {
+        "account": "101"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "account": "101",
+          "cycle": 0,
+          "limit_flow": 5,
+          "used_flow": 1.5
+        }
+      }
+    },
+    {
+      "name": "sub_account_limit_flow_batch",
+      "method": "GET",
+      "path": "/externalapi/tool/accountLimitFlowBatchDetail",
+      "args": {
+        "accounts": "101,102"
+      },
+      "form": {
+        "accounts": "101,102",
+        "page": "1",
+        "pagesize": "100"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "rows": [
+            {
+              "account": "101",
+              "cycle": 0,
+              "limit_flow": 5
+            },
+            {
+              "account": "102",
+              "cycle": 1,
+              "limit_flow": 10
+            }
+          ],
+          "total": 2
+        }
+      }
+    },
+    {
+      "name": "sub_account_list",
+      "method": "GET",
+      "path": "/externalapi/device/accountList",
+      "args": {
+        "page": 1,
+        "pagesize": 20
+      },
+      "form": {
+        "page": "1",
+        "pagesize": "20"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        },
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        },
+        "static-ipv6": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1",
+            "version": "6"
+          }
+        },
+        "datacenter": {
+          "form": {
+            "type": "2",
+            "status": "1"
+          }
+        },
+        "dynamic-bandwidth": {
+          "form": {
+            "product_type_id": "11"
+          },
+          "response": {
+            "code": 1,
+            "msg": "操作成功",
+            "data": {
+              "rows": [
+                {
+                  "id": 52,
+                  "sub_account": 901,
+                  "country": "US",
+                  "username": "DEMO_BANDWIDTH_USER",
+                  "password": "DEMO_ONLY_BANDWIDTH",
+                  "target": "proxy.example.invalid",
+                  "port": 5001,
+                  "protocol": "socks5",
+                  "bandwidth_num": 10,
+                  "can_renew": true,
+                  "can_upgrade": true,
+                  "refunding": false
+                }
+              ],
+              "total": 1
+            }
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "rows": [
+            {
+              "id": "71",
+              "country": "US",
+              "username": "DEMO_USER",
+              "password": "DEMO_ONLY",
+              "target": "proxy.example.invalid",
+              "port": 5000,
+              "agree": "SOCKS5",
+              "ip": "192.0.2.71"
+            }
+          ],
+          "total": 1
+        }
+      }
+    },
+    {
+      "name": "sub_account_set_credentials",
+      "method": "POST",
+      "path": "/externalapi/device/batchUpdateSubAccountUsernamePassword",
+      "args": {
+        "content": [
+          {
+            "id": "71",
+            "customUsername": "demoUser71",
+            "customPassword": "demoPass71"
+          },
+          {
+            "id": "72",
+            "customUsername": "demoUser72",
+            "customPassword": "demoPass72"
+          }
+        ]
+      },
+      "form": {
+        "content[0][id]": "71",
+        "content[0][customUsername]": "demoUser71",
+        "content[0][customPassword]": "demoPass71",
+        "content[1][id]": "72",
+        "content[1][customUsername]": "demoUser72",
+        "content[1][customPassword]": "demoPass72"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        },
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        },
+        "static-ipv6": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1",
+            "version": "6"
+          }
+        },
+        "datacenter": {
+          "form": {
+            "type": "2",
+            "status": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "updated": [
+            "71",
+            "72"
+          ]
+        }
+      }
+    },
+    {
+      "name": "sub_account_set_limit_flow",
+      "method": "POST",
+      "path": "/externalapi/tool/accountLimitFlowSet",
+      "args": {
+        "account": "101",
+        "cycle": 0,
+        "limit_flow": 5
+      },
+      "form": {
+        "account": "101",
+        "cycle": "0",
+        "limit_flow": "5"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "account": "101",
+          "cycle": 0,
+          "limit_flow": 5
+        }
+      }
+    },
+    {
+      "name": "sub_account_set_limit_flow_batch",
+      "method": "POST",
+      "path": "/externalapi/tool/accountLimitFlowBatchSet",
+      "args": {
+        "cycle": 1,
+        "accounts": [
+          {
+            "account": "101",
+            "limit_flow": 10
+          },
+          {
+            "account": "102",
+            "limit_flow": 0
+          }
+        ]
+      },
+      "form": {
+        "cycle": "1",
+        "accounts[0][account]": "101",
+        "accounts[0][limit_flow]": "10",
+        "accounts[1][account]": "102",
+        "accounts[1][limit_flow]": "0"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "updated": [
+            "101"
+          ],
+          "removed": [
+            "102"
+          ]
+        }
+      }
+    },
+    {
+      "name": "sub_account_set_password_batch",
+      "method": "POST",
+      "path": "/externalapi/device/batchUpdateSubAccountPassword",
+      "args": {
+        "content": [
+          {
+            "id": "71",
+            "customPassword": "demoNew71"
+          },
+          {
+            "id": "72",
+            "customPassword": "demoNew72"
+          }
+        ]
+      },
+      "form": {
+        "content[0][id]": "71",
+        "content[0][customPassword]": "demoNew71",
+        "content[1][id]": "72",
+        "content[1][customPassword]": "demoNew72"
+      },
+      "products": {
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        },
+        "datacenter": {
+          "form": {
+            "type": "2",
+            "status": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "updated": [
+            "71",
+            "72"
+          ]
+        }
+      }
+    },
+    {
+      "name": "sub_account_toggle_port",
+      "method": "POST",
+      "path": "/externalapi/device/portEnableUpdateList",
+      "args": {
+        "ids": "71,72",
+        "use_ip_port": 0
+      },
+      "form": {
+        "ids": "71,72",
+        "use_ip_port": "0"
+      },
+      "products": {
+        "static-standard": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "0"
+          }
+        },
+        "static-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "1"
+          }
+        },
+        "static-isp-native": {
+          "form": {
+            "type": "1",
+            "status": "1",
+            "native": "2"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "updated": [
+            "71",
+            "72"
+          ],
+          "use_ip_port": 0
+        }
+      }
+    },
+    {
+      "name": "sub_account_update",
+      "method": "POST",
+      "path": "/externalapi/device/accountUpdate",
+      "args": {
+        "id": "101",
+        "remark": "客户 A 的任务"
+      },
+      "form": {
+        "id": "101",
+        "remark": "客户 A 的任务"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "id": "101",
+          "remark": "客户 A 的任务"
+        }
+      }
+    },
+    {
+      "name": "sub_account_update_batch",
+      "method": "POST",
+      "path": "/externalapi/device/accountUpdateList",
+      "args": {
+        "ids": "101,102",
+        "remark": "批量任务",
+        "changeInterval": 20
+      },
+      "form": {
+        "ids": "101,102",
+        "remark": "批量任务",
+        "changeInterval": "20"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "updated": [
+            "101",
+            "102"
+          ],
+          "changeInterval": 20
+        }
+      }
+    },
+    {
+      "name": "sub_account_whitelist",
+      "method": "GET",
+      "path": "/externalapi/tool/getSubAccountWhiteList",
+      "args": {
+        "id": "101"
+      },
+      "form": {
+        "id": "101"
+      },
+      "products": {
+        "dynamic-no-expiry": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "0"
+          }
+        },
+        "dynamic-monthly": {
+          "form": {
+            "type": "0",
+            "status": "0",
+            "is_month": "1"
+          }
+        }
+      },
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": [
+          {
+            "ip": "192.0.2.10"
+          },
+          {
+            "ip": "198.51.100.20"
+          }
+        ]
+      }
+    },
+    {
+      "name": "user_balance",
+      "method": "GET",
+      "path": "/externalapi/user/getGetUserInfo",
+      "args": {},
+      "form": {},
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "money": "3347.42",
+          "origin_money": "3293.23",
+          "give_money": "54.19"
+        }
+      },
+      "expected": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": "3347.42"
+      }
+    },
+    {
+      "name": "user_info",
+      "method": "GET",
+      "path": "/externalapi/user/getGetUserInfo",
+      "args": {},
+      "form": {},
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "money": "3347.42",
+          "origin_money": "3293.23",
+          "give_money": "54.19"
+        }
+      }
+    },
+    {
+      "name": "user_price",
+      "method": "GET",
+      "path": "/externalapi/tool/getUserCustomPriceInfo",
+      "args": {},
+      "form": {},
+      "response": {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+          "dynamic": [
+            {
+              "num": 10,
+              "price": "25.00"
+            }
+          ],
+          "static": [
+            {
+              "country": "US",
+              "timelen": 1,
+              "price": "11.00"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

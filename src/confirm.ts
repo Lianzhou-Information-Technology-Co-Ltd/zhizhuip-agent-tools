@@ -42,8 +42,8 @@ const fingerprint = (tool: string, args: Record<string, unknown>): string =>
 
 /**
  * 客户端不支持弹窗确认时用的一次性确认码：绑定工具与参数，过期或参数变了都作废。
- * 发出后要静默一段时间才能用：模型拿到确认码后不问用户直接重调，间隔只有几秒，而用户看完预览再回复至少要十来秒；
- * 提前用不消费确认码，只把生效时间往后推，连续硬试永远用不上，停下来问用户之后再调才能用。
+ * 发出后有静默期，用于限制紧接预览的自动重试；服务不能仅凭等待时间判断用户是否同意。
+ * 提前使用不消费确认码，只顺延生效时间；助手仍须等待用户明确同意，不能等待到期后自动执行。
  */
 export class ConfirmTokens {
   private pending = new Map<string, { fp: string; expires: number; notBefore: number }>();
@@ -96,7 +96,7 @@ export function withConfirm(tool: ToolDef, deps: ConfirmDeps) {
       const state = deps.tokens.consume(confirm_token, tool.name, args);
       if (state === 'mismatch') return text('确认码对应的参数与本次不同，已作废。请不带确认码重新调用，重新向用户确认。', true);
       if (state === 'too_soon') {
-        return text('确认码还不能用：它只在你把预览转述给用户、用户回复同意之后才生效，这次调用离上次太近。现在停下来，把预览告诉用户并等待回复；不要立刻重试，每提前试一次生效时间都会顺延。每一次操作都要单独确认，之前确认过同样的操作也不例外。', true);
+        return text('确认码还不能用：这次调用仍在静默期内。时间限制不代表用户已经同意；必须把预览转述给用户并等待明确回复，服务无法仅凭时间验证用户授权。现在停下来等待回复；不要立刻重试，每提前试一次生效时间都会顺延。每一次操作都要单独确认，之前确认过同样的操作也不例外。', true);
       }
       if (state !== 'ok') return text('确认码无效或已过期。请不带确认码重新调用，重新向用户确认。', true);
       return deps.exec(args);
@@ -127,7 +127,7 @@ export function withConfirm(tool: ToolDef, deps: ConfirmDeps) {
 
     const token = deps.tokens.issue(tool.name, args);
     return text(
-      `${note}待确认，尚未执行。\n${preview(tool, args)}\n\n请把以上内容原样告诉用户；用户明确同意后，用相同参数加 confirm_token=${token} 再调用一次（5 分钟内有效，只能用一次，用户回复之前不生效）。用户不同意就不要再调。每一次操作都要单独确认，之前确认过同样的操作也不例外。`,
+      `${note}待确认，尚未执行。\n${preview(tool, args)}\n\n请把以上内容原样告诉用户；用户明确同意后，用相同参数加 confirm_token=${token} 再调用一次（5 分钟内有效，只能用一次；必须等待用户明确同意，时间限制不代表授权）。用户不同意就不要再调。每一次操作都要单独确认，之前确认过同样的操作也不例外。`,
       false,
     );
   };

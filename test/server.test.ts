@@ -75,7 +75,7 @@ describe('stdio server', () => {
     const { resources } = await c.listResources();
     expect(resources.map(r => r.uri)).toEqual(['zhizhuip://docs/dynamic-proxy-session']);
     const read = await c.readResource({ uri: 'zhizhuip://docs/dynamic-proxy-session' });
-    expect((read.contents[0] as { text: string }).text).toContain('proxy.zhizhuip.com');
+    expect((read.contents[0] as { text: string }).text).toContain('-ss-sessionA-tm-20m');
     await c.close();
   }, 20_000);
 
@@ -204,7 +204,7 @@ describe('stdio server', () => {
     expect(r.stdout).toContain('context_servers');
     expect(r.stdout).toContain('dist/src/index.js');
     const npx = spawnSync(process.execPath, [ENTRY, 'setup', '--npx', '--token', 'sk-abc'], { encoding: 'utf8', env: { ...process.env, ZHIZHUIP_TOKEN: '' } });
-    expect(npx.stdout).toContain('npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-mcp');
+    expect(npx.stdout).toContain('npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools');
   });
 
   it('参数不认识或缺少 ZHIZHUIP_TOKEN 时以退出码 2 结束并给出提示', () => {

@@ -1,51 +1,65 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件是 Claude Code 在本仓库工作的现行维护规则。历史设计、计划和联调记录只用于追溯，不替代当前用户指令、源码与本文件。
 
-## 项目是什么
+## 项目与命名
 
-蜘蛛 IP（zhizhuip.com）对外 HTTP 接口 `externalapi` 的 MCP 服务器。TypeScript，官方 MCP SDK v2（`@modelcontextprotocol/server` 2.x），仅 stdio。不带参数暴露全部 44 个工具（含下单扣费与删除），`--readonly` 只暴露 21 个只读工具；23 个写操作工具执行前先向用户确认（`src/confirm.ts`），`--yes` 关闭确认；`setup` 子命令打印各客户端的配置片段，不写文件。参数业务校验、鉴权、扣费都在 PHP 后端，本项目只是 HTTP 客户端，不改后端。面向其他使用者，环境要求与命令示例不以某台开发机为准。
+仓库为 [zhizhuip-agent-tools](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools)，同仓维护蜘蛛 MCP 与面向客户的 [zhizhuip Skill](skills/zhizhuip/SKILL.md)。本地和远程仓库已于 2026-10-30 更名；MCP 的 package name、bin 和 server name 统一为 `zhizhuip-agent-tools`，不保留旧名称兼容别名，客户端配置 key 保持 `zhizhuip`，鉴权变量保持 `ZHIZHUIP_TOKEN`。仓库更名不代表本次代码已经发布到 npm。
 
-## 常用命令
+TypeScript、Node.js ≥ 20、官方 MCP SDK v2，仅 stdio。当前 [工具规格](spec/tools.json) 共 44 个工具，21 个标为只读，23 个写工具；`--readonly` 按标注过滤。标注不保证后端零副作用：`main_account_switch_token` 首次读取可能创建 token。业务校验、鉴权和扣费在 PHP 后端；本仓库不直接修改后端。
 
-- `npm ci`：安装并自动构建（`prepare` 跑 `tsc`，输出到 `dist/`）。
-- `npm test`：构建 + 全部测试。不联网，端到端测试起本地假后端。
-- `npx vitest run test/http.test.ts`：跑单个测试文件；`npx vitest run test/spec.test.ts -u` 更新快照。
-- `npm run build-spec`：用本地 `spec/pages/` 重新生成 `spec/tools.json`，不联网。
-- `npm run sync-docs`：联网重新下载文档站全部接口页到 `spec/pages/`，随后自动 build-spec 并打印与上一版的差异。
-- 运行：`node dist/src/index.js [--readonly] [--yes]`。环境变量 `ZHIZHUIP_TOKEN`（必填）、`ZHIZHUIP_BASE_URL`（默认线上 `https://www.zhizhuip.cc`）、`ZHIZHUIP_TIMEOUT_MS`、`ZHIZHUIP_CONFIRM_QUIET_MS`（确认码静默期，默认 10000，端到端测试设 0）。
-- 配置片段：`node dist/src/index.js setup --token xxx [--readonly] [--npx]`，生成逻辑在 `src/setup.ts`（纯文本函数，有单测）。默认按本机路径生成，`--npx` 生成 `npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-mcp`；仓库地址变了只改 `src/setup.ts` 的 `PACKAGE` 和 `package.json` 的 `repository`。
-- 调试：`npx @modelcontextprotocol/inspector -e ZHIZHUIP_TOKEN=xxx -- node dist/src/index.js`。客户端拉起子进程时不继承终端环境变量，token 只能通过客户端配置或 Inspector 的 `-e` 传入。
+## 安装与运行入口
 
-## 架构：两条链路
+- `npm ci`：按锁文件安装，`prepare` 自动构建到 `dist/`。
+- `node dist/src/index.js install`：交互选择客户端，一次安装同包 Skill 与 MCP；优先读取环境变量 `ZHIZHUIP_TOKEN`，缺失时隐藏输入。
+- `node dist/src/index.js install --agents claude-code,cursor,codex --scope global`：明确客户端与范围；支持 `--readonly`、`--list`、`--dry-run`、`--help`。非交互执行必须指定 `--agents` 并提供环境变量 Key。
+- `install` 适配 Claude Code、Cursor、Codex、Gemini CLI、OpenCode、经典 Windsurf、Cline 的 VS Code 扩展、VS Code Copilot；Cline 与 Windsurf 仅 global，其余支持 project/global。具体路径见 [USAGE](USAGE.md) 与 [src/install.ts](src/install.ts)。`--list` 只检测相关目录，不证明软件已安装或已加载配置。
+- `node dist/src/index.js setup [--readonly] [--npx]`：仅打印 MCP 配置片段，不写配置或安装 Skill。`setup --token ...` 会把 Key 放进命令参数及输出，只供维护者明确需要时使用；通常优先 `install`。
+- `setup --npx` 使用 `github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools`。npm 包名与启动命令统一为 `zhizhuip-agent-tools`。
+- `node dist/src/index.js [--readonly] [--yes]`：直接启动 MCP。`--yes` 确实会绕过写确认，仅用于明确授权的自动化；安装器不接受或生成 `--yes`，不设置客户端工具自动批准。
 
-开发期（生成链路）：文档站 `llms.txt` → `scripts/sync-docs.ts` 下载 115 个 `/externalapi/` 接口页（每页一个 OpenAPI 3.0.1 YAML 块；路径在 `/api/` 下的 10 页 IPAPI 白名单跳过；“对外接口”分组下已有正式产品分组的 5 个重复页跳过），按文档站分组存成 `spec/pages/<产品目录>/<控制器>-<方法>.md`，目录名就是 product 枚举值（`dynamic-no-expiry`、`dynamic-monthly`、`dynamic-bandwidth`、`static-standard`、`static-native`、`static-isp-native`、`static-ipv6`、`datacenter`），无产品分组是 `tool/`、`user/` → `scripts/lib/merge.ts` 按接口路径合并各产品页、应用 `spec/overrides.yaml` → `scripts/build-spec.ts` 写出 `spec/tools.json`。原始页和生成物都提交入库，`spec/pages/` 同时是快照测试的输入；目录与文件名由 `placePages()` 决定，不要手动改名，`test/spec.test.ts` 会校验。
+直接运行时 API Key 由进程环境 `ZHIZHUIP_TOKEN` 提供。客户端不一定继承当前终端环境，应检查实际子进程配置；不能断言 Key 只能写进客户端配置。`install` 将 Key 保存在用户目录 `~/.zhizhuip-agent-tools/credentials/`，配置只引用凭证文件；固定启动器优先读取环境 Key，否则读取该文件。Inspector 调试可通过其 `-e` 传入环境变量，不在日志或文档保存真实值。
 
-产品机制是本项目的核心差异：后端用 `type/status/native/version/is_month` 组合标识旧产品，动态不限流量用 `product_type_id=11`，文档站按产品分组各写一页。生成时页面的产品由分组决定（产品表 `PRODUCTS` 在 `merge.ts`），这些参数不进工具 schema，换成一个必填的 `product` 枚举（只列该路径有页的产品），展开表写进工具条目的 `products`；只对应一个产品的路径不出 `product`，组合写进 `fixed`。页面里"此处固定为 N"只用来与产品表交叉核对，对不上打印警告，由 overrides 的 `products` 显式指定。无产品分组（优惠券、价格、账号信息）的参数照文档保留。
+安装后的运行目录位于 `~/.zhizhuip-agent-tools/runtimes/<内容指纹>/`，包含同包产物与生产依赖，不依赖 npx 缓存继续存在。全局安装共享凭证，项目范围按项目路径隔离；更新全局 Key 会影响共享该凭证的既有客户端。变化文件备份，单个客户端失败时恢复自身改动并保留其他成功结果；全部失败时尝试恢复共享凭证，已复制的运行缓存可能保留。TOML 保留配置值但不保证注释、格式不变。POSIX 使用私有权限，Windows 继承用户目录 ACL，不宣称另做 ACL 加固。含符号链接或目录联接的目标会被拒绝。
 
-运行期：`src/index.ts` 只读 `spec/tools.json`，用 `fromJsonSchema()` 把每个工具的 JSON Schema 原样注册给 SDK，SDK 用内置 Ajv 在调用前校验（所有对象都 `additionalProperties: false`，写错参数名会被拒绝而不是发给后端）。`src/http.ts` 先把 `product` 展开成后端参数（`expandArgs`），经 `src/form.ts` 编成 `application/x-www-form-urlencoded`（PHP 括号格式 `content[0][ids][0]=…`），只读工具 GET、其余 POST，每个请求附带参数 `is_mcp_send=1` 和请求头 `User-Agent: zhizhuip mcp`，并固定带 `Accept-Language: zh-CN`，再把后端 `{code,msg,time,data}` 映射成 MCP 结果。`--readonly` 就是按 `readOnly` 过滤同一份工具表。运行期不 import zod、不解析 YAML、不联网拉文档。
+## 工具、生成器与文档来源
 
-写操作确认（`src/confirm.ts`）：非只读工具的处理器被 `withConfirm` 包一层。客户端声明了 elicitation 能力（2025 版协议看连接初始化时的能力，2026 版看每个请求信封里的 `CLIENT_CAPABILITIES_META_KEY`）就返回 `inputRequired(...)` 让客户端弹出操作预览，用户点确认后 SDK 重入处理器，从 `ctx.mcpReq.inputResponses` 读到 accept 且 confirm=true 才调后端；弹窗没拿到同意（decline、cancel、未勾选）和不支持弹窗的客户端都退到确认码：返回预览和一次性 `confirm_token`（绑定工具与参数、5 分钟有效），模型转述给用户后带码重调。弹窗的拒绝不直接当取消，是因为有的客户端声明支持 elicitation 却不显示弹窗就回 decline。带了 `confirm_token` 的调用不再弹窗，直接校验确认码。确认码发出后有静默期（默认 10 秒）：模型拿到码不问用户就重调会收到"还不能用"且不消费、生效时间顺延。写工具的 schema 在注册时多一个可选 `confirm_token`，`spec/tools.json` 本身不含它。预览文案由 `preview()` 从工具标题、描述首句和参数拼出，`product` 显示中文标签，不查价、不查余额。
+开发链路为文档站 `llms.txt` → [scripts/sync-docs.ts](scripts/sync-docs.ts) → `spec/pages/` 源文档快照 → [scripts/lib/merge.ts](scripts/lib/merge.ts) 与 [spec/overrides.yaml](spec/overrides.yaml) → `spec/tools.json`。当前同步范围为 115 个 `/externalapi/` 页面，跳过 IPAPI `/api/` 页面及已在正式产品分组出现的重复页；实际范围以脚本过滤规则与测试为准。
 
-## 改工具定义的正确姿势
+接口快照保留上游原文，来源与差异集中说明在 [spec/README.md](spec/README.md)；它们不是当前 MCP 调用说明。工具名称、只读/破坏性标注、产品范围、描述与参数约束的修正在 `spec/overrides.yaml`，不能手改生成的 `spec/tools.json`。`npm run build-spec` 只读本地快照，不联网；`npm run sync-docs` 会联网下载并重建工具规格，运行前确认任务确需同步。
 
-不要手改 `spec/tools.json`。工具名、中文描述、只读与破坏性标注、产品列表、拆分、参数类型/描述/枚举/必填的修正都在 `spec/overrides.yaml`，按接口路径做 key；改完 `npm run build-spec`，再 `npm test`，快照变化合理就 `-u`。`test/spec.test.ts` 会校验 `tools.json` 与当前生成结果一致，忘了重生成会红。同一接口只取 data 里一个字段的派生工具（如 `user_balance` 取 `user_info` 的 `money`）写在 overrides 顶层 `derived`，生成时从来源工具复制并带上 `pick`，运行期 `callApi` 只返回该字段。
+Session 文档单独处理：同步下载保存为 `spec/source/dynamic-proxy-session.md` 待审阅快照，不能直接覆盖维护后的 [spec/dynamic-proxy-session.md](spec/dynamic-proxy-session.md)。运行时 MCP 资源和安装包读取后者。核实 Session、时长和资源池语义后再人工更新运行资源与对应 Skill，避免恢复旧类比、硬编码入口或未经证实的性能承诺。
 
-合并规则要点：同路径各页参数取并集；顶层参数要在全部变体页都必填才必填，部分必填按产品名写进描述；同一参数各页描述不同时取最长的一条，多产品共用的参数（如购买接口的 `country`）要在 overrides 里给通用描述；`access_token` 一律剔除（鉴权只走请求头 token）；子账号 id 类参数（id、ids、subAccount、subAccounts、account、accounts、sub_accounts、sub_account_id，含嵌套）一律 string；`content[0][ids][0]` 转对象数组里的字符串数组，`sub_accounts[]` 转数组；描述去掉 HTML 标签。文档站新增接口会让生成失败并列出路径，把它加进 overrides 或 `ignore`。文档缺陷的兜底条目在 overrides 里带"文档缺陷兜底"注释，文档站修好后删除。
+生成器按产品组合后端参数，工具层使用 `product` 枚举；单产品工具可用固定参数且没有 `product`。子账号 ID 按 schema 用字符串，不能把本地记录 ID 与业务编号混用。动态带宽的 `sub_account_id` 取 `rows[].sub_account`。后端已有但 MCP 未暴露的续费试算、升级差价、订单详情等接口不能假写成可调用工具。
 
-动态不限流量的续费、升级、退单参数 `sub_account_id` 取列表 `rows[].sub_account`，不是本地记录 `id`；MCP 仍按字符串传。新购、续费、升级直接余额扣费，退单只提交待审核申请。现有价格接口尚不含此产品，费用先在网站核实。
+运行期 [src/index.ts](src/index.ts) 注册本地 JSON Schema，SDK 校验参数；[src/http.ts](src/http.ts) 展开产品参数并调用后端，[src/form.ts](src/form.ts) 编码 PHP 表单。按工具标注使用 GET 或 POST，请求带 `is_mcp_send=1`、`User-Agent: zhizhuip mcp` 和 `Accept-Language: zh-CN`。不在运行时拉文档或解析 YAML。
 
-## 规则
+## 写操作确认与业务边界
 
-- stdout 是 MCP 协议通道，日志只用 `console.error`。token 不进日志、不进返回给模型的错误文本。
-- 写操作的确认层不能绕过：新增写工具自动带确认；测试里要直接打假后端就连 `--yes` 或在客户端声明 elicitation 并自动同意。
-- 自动化测试仅访问本地假后端，不访问线上。新增子账号、下单、续费、退单、删除等会在后端创建或删除数据的线上操作，只由维护者用测试账号手动验证，AI 代理不代跑。
-- 代码、注释、文档里不出现其他公司或产品的名字、域名、环境变量。
-- 注释只写后来者不查资料就能懂的"为什么"，不复述库函数行为、协议版本或 SDK 内部术语；仓库没有 eslint，不写 eslint 指令。
-- 不自行 git commit，改完列出改动由维护者提交。
+[src/confirm.ts](src/confirm.ts) 包装默认模式下的写工具。支持表单 elicitation 的客户端可显示预览；只有 `accept` 且 `confirm=true` 才执行。无表单能力或弹窗未获确认时，返回预览与一次性 `confirm_token`。助手必须转述本次完整预览并等待明确同意，拒绝或取消后不得自行执行；工具返回确认码不等于授权。
 
-## 文档
+确认码绑定工具与参数，5 分钟有效，仅使用一次。默认 10 秒静默期只限制过快重试；提前使用会顺延生效时间，时间过去不代表用户已经同意，服务也不能凭时间判断用户是否回复。每次写操作分别确认，参数变化须重新预览；确认码不会传入后端。`ZHIZHUIP_CONFIRM_QUIET_MS=0` 仅用于本地模拟测试，不能用来绕过真实用户确认。
 
-- `README.md`：项目介绍、安装和开发命令。
-- `USAGE.md`：客户端配置和产品使用说明。
-- 如本地存在 `docs/维护者说明.md`，维护前一并阅读；该目录由维护者本地保留，不随 Git 分发。
+预览从工具说明与参数生成，不实时查价或余额。购买、续费、升级须先核实费用、对象和产品范围；报价工具缺失时使用网站核实结果，不能硬编码价格或绕过 MCP 直调 HTTP。退款申请是待审核，不等于退款到账。超时或断连无法证明写请求未落地，应先复核，不能盲目重试。
+
+`sub_account_update` 改备注以及账密、限流相关更新可能补发默认连接配置；它们不是无风险窄更新。用户要求其他配置不变而 MCP 无法满足时，应解释并停止该写路径。后端语义、前置条件与结果检查见 [工具覆盖表](skills/zhizhuip/references/tool-map.md)。
+
+## Skill 与验证维护
+
+- 客户入口为 `skills/zhizhuip/SKILL.md`，细节放 `references/`，不放本机路径、真实凭证或内部维护记录。
+- Skill 以运行中的 MCP schema 为准，不复制整套 schema，不声称覆盖全部后端接口，不绕过 MCP 确认。
+- 工具或后端语义变动时同步 [tool-map](skills/zhizhuip/references/tool-map.md)、相关流程、[行为场景](test/evals/scenarios.md)、`test/evals/tool-cases.json` 及对应测试。验收以可执行流程和失败分支为准，不以工具名出现次数计算覆盖率。
+- `npm test` 构建并运行全部测试，业务调用使用本地假后端；小范围修改运行相应测试，已通过且未受影响的检查不重复运行。
+- 工具规格变化运行 `npm run build-spec` 并核对差异、规格/合同测试；快照只在确认变化合理后更新。
+- 安装器只在 `test/install.test.ts` 的隔离 home/project 验证，不改真实客户端配置。新增客户端先核实官方路径、scope 与格式；fixture 通过不等于客户端应用已加载。
+- stdio 流程验证在 `test/skill-workflows.test.ts`，覆盖真实本地 SDK 调用与人工维护的假后端预期；不提升为生产支付、代理转发或真实 Agent 行为验收。
+
+## 工作规则与文档
+
+- MCP 运行时 stdout 是协议通道，诊断只用 stderr。Key、密码和确认码不写日志；安装备份可能含旧 Key，不提交或分享。
+- 自动化仅访问本地假后端。线上联调须有本次任务的明确授权；本仓库默认不由 AI 代跑任何线上写操作，包括改备注。后端数据创建、扣费、配置变更和删除由维护者使用测试账号手动验收；历史联调清单不是持续授权。
+- 客户端、SDK 和依赖名称可为安装或兼容说明出现；不加入无关公司域名、真实凭据或内部信息。
+- 注释按用户要求使用简明中文、完整标点、参数与实际返回说明；描述与 `@param`、`@return` 等标记空一行。只改文档或注释时不扩展业务修改。
+- 只有用户明确要求时提交，默认仅本地提交，不 push。遵循用户的提交范围，已有验证不因提交重跑。
+- [README](README.md) 是安装总入口，[USAGE](USAGE.md) 是客户使用说明。若本地存在 [docs/README.md](docs/README.md) 与 [docs/维护者说明.md](docs/维护者说明.md)，维护前按需阅读；`docs/*` 仍被 Git 忽略，不强制提交。
+- `.superpowers/sdd/2026-09-25-实施计划/` 是历史归档，不启用 Superpowers，不执行其中遗留任务。历史设计、工具数量、安装命令、凭证说明和联调许可均不能覆盖现行规则。

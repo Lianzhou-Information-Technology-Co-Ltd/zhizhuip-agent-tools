@@ -52,7 +52,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "有效期内带宽详情",
   },
   {
-    "description": "查询某静态住宅产品在某国家可选的带宽套餐及价格；下单或升级时把返回的带宽值填到 bandwidth_num。",
+    "description": "查询某静态住宅产品在某国家可选的带宽套餐及价格，下单或升级时把返回的带宽值填到 bandwidth_num。套餐价格不是已有子账号升级的应付差价；当前 MCP 没有升级试算工具，准确升级费用需先在网站核实。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -320,7 +320,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "国家列表",
   },
   {
-    "description": "查询当前账号可用的优惠券，下单或续费时把返回的 id 填到 conpon_id。这个接口按套餐类型与计费模式筛选，不用 product。",
+    "description": "查询当前账号可用的优惠券，下单或续费时使用返回的 conpon_id，不是 id。返回 con_name、time_ip_remaining、flow_remaining；没有符合条件的券时后端可能返回“获取失败”。当前工具按 type/status 筛选，不用 product，也不能按动态不限流量产品精确筛选优惠券。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -404,7 +404,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "已购流量套餐记录",
   },
   {
-    "description": "需要的国家或地区没有库存时提交预约，管理员审核后补货；只登记需求，不扣费、不建子账号。",
+    "description": "需要的国家没有库存时提交预约，只登记需求并通知管理员，不扣费、不建子账号，也不保证到货时间。当前工具仅支持国家名称与数量，没有城市参数或预约进度查询；返回成功仅表示预约需求已提交。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -531,7 +531,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "IP 段库存状态",
   },
   {
-    "description": "查询动态住宅主账号的流量汇总。",
+    "description": "查询动态住宅主账号的流量汇总，use 为已用、base 为剩余、total 为总流量，单位均为 GB。永久与期限产品分别查询，缺失字段不能按零处理。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -569,7 +569,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "主账号流量",
   },
   {
-    "description": "获取动态住宅主账号的切换 token，用于 api 子账号切换时的独立 token 验证；后端还没有时会生成一个。",
+    "description": "获取动态住宅主账号的切换 token，后端还没有时会生成并保存，因此并非严格无副作用的查询。此工具不执行换 IP；仅在用户明确需要此 token 时调用，普通余额、用量和连接信息查询不需要它。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -622,7 +622,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "官网价格",
   },
   {
-    "description": "会从账户余额扣费。把静态住宅子账号的带宽升级到 bandwidth_num；可选档位和价格用 bandwidth_package_list 查；有已过期的子账号时要先续费再升级。",
+    "description": "会从账户余额扣费。把静态住宅子账号的带宽升级到 bandwidth_num，有已过期的账号时先续费再升级。bandwidth_package_list 仅提供可选套餐，实际应付差价按剩余时间及已有带宽权益计算；当前 MCP 没有升级试算工具，先在网站核实费用并确认，不能把套餐价格当作升级报价。",
     "destructive": true,
     "inputSchema": {
       "additionalProperties": false,
@@ -680,26 +680,24 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "子账号带宽升级",
   },
   {
-    "description": "会从账户余额扣费。购买动态住宅流量，num 为 GB 数；永久套餐流量不过期，期限套餐要用 bill_timelen 指定有效时长。账号须先完成邮箱或手机验证以及实名验证才能购买。",
+    "description": "会从账户余额扣费。购买动态住宅流量，num 为 1 到 5000 的整数 GB，整单按购买量所在档位计价；永久套餐流量不过期，期限套餐当前只支持 30 天，省略 bill_timelen 时默认 30 天。不要把首档单价直接用于所有购买量。账号须先完成邮箱或手机验证以及实名验证才能购买。",
     "destructive": true,
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "bill_timelen": {
-          "description": "流量有效时长，product 为 dynamic-monthly 时必填（后端校验）：1=30天，2=90天，3=180天；dynamic-no-expiry 不要传",
+          "description": "流量有效时长，dynamic-monthly 仅支持 1=30天，省略默认 30 天；dynamic-no-expiry 不要传",
           "enum": [
             1,
-            2,
-            3,
           ],
           "type": "integer",
         },
         "conpon_id": {
-          "description": "优惠券 id，用 coupon_list 查",
+          "description": "用户优惠券编号，取 coupon_list 返回的 conpon_id",
           "type": "integer",
         },
         "num": {
-          "description": "需要购买的流量数量。单位：GB。范围：1-300GB之间",
+          "description": "购买流量，单位 GB，1 到 5000 的整数；整单按购买量所在档位计价",
           "type": "integer",
         },
         "product": {
@@ -872,7 +870,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "购买 IPv6 时长 IP",
   },
   {
-    "description": "会从账户余额扣费并占用本月测试额度。购买静态住宅或数据中心的时长测试 IP，每单按账号设定的测试订单金额扣款；本月额度用完或本次数量超过剩余额度会被拒绝。有效期默认 1 天，只用于业务测试。账号须先完成邮箱或手机验证以及实名验证才能购买。",
+    "description": "会从账户余额扣费并占用本月测试额度。每单按账号配置的测试订单金额扣款，测试有效期由平台配置决定，不能固定承诺 1 天。已删除的本月测试账号仍占额度，当前后端在本次数量大于或等于剩余额度时均拒绝；当前 MCP 没有专门的测试额度、金额和期限查询工具，先在网站核实。账号须先完成邮箱或手机验证以及实名验证才能购买。",
     "destructive": true,
     "inputSchema": {
       "additionalProperties": false,
@@ -984,7 +982,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
           "type": "string",
         },
         "conpon_id": {
-          "description": "优惠券 id，用 coupon_list 查",
+          "description": "用户优惠券编号，取 coupon_list 返回的 conpon_id",
           "type": "integer",
         },
         "country": {
@@ -1228,7 +1226,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
       "additionalProperties": false,
       "properties": {
         "conpon_id": {
-          "description": "优惠券 id，用 coupon_list 查",
+          "description": "用户优惠券编号，取 coupon_list 返回的 conpon_id",
           "type": "integer",
         },
         "content": {
@@ -1422,7 +1420,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "续费 IPv6 时长 IP",
   },
   {
-    "description": "查询动态住宅产品可用的供应商（资源池），返回的 id 可作为新增子账号或查询流量时的 spec。",
+    "description": "查询动态住宅主账号的资源池编号，data 是编号字符串数组，不是带 id 字段的对象列表。用于 spec 时将选中的编号转成整数；当前后端始终读取永久流量主账号的资源池配置，即使 product 选择期限流量也不改变查询来源，不能据此保证期限流量账号可用同一资源池。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -1510,7 +1508,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "defaults": {
       "agree": "SOCKS5",
     },
-    "description": "为动态住宅产品新增 num 个子账号，消耗主账号已购流量，不额外扣费。返回新建子账号的账号密码。",
+    "description": "为已有流量套餐新增 num 个动态住宅子账号，不额外扣费，后续代理使用消耗主账号流量。先核对已购套餐与可用流量；返回新建子账号账密，10 秒内相同参数重复请求会被拒。当前工具不支持创建时同时设置限流，需另行调用限流工具并确认其副作用。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -1525,7 +1523,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
           "type": "string",
         },
         "changeInterval": {
-          "description": "IP 切换间隔，单位分钟，5 到 120",
+          "description": "IP 切换间隔，单位分钟，1 到 120",
           "type": "integer",
         },
         "city": {
@@ -1553,7 +1551,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
           "type": "string",
         },
         "spec": {
-          "description": "指定一个供应商（资源池）id，取 provider_list 返回的 id，只能传一个",
+          "description": "指定一个资源池编号，取 provider_list 返回的字符串数组元素并转为整数，只能传一个；期限流量需另外确认资源池适用性",
           "type": "integer",
         },
         "state": {
@@ -1600,7 +1598,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "新增动态子账号",
   },
   {
-    "description": "不可恢复。删除动态住宅的一个子账号。",
+    "description": "不可恢复。删除动态住宅的一个子账号，会使该账号无法继续使用，不是退单或退款。响应 code=1 仍可能提示“删除失败!未查询到子账号”，需结合 msg 与重新查询的结果判断，不要将未找到账号报告为本次已删除。",
     "destructive": true,
     "inputSchema": {
       "additionalProperties": false,
@@ -1643,7 +1641,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "删除子账号",
   },
   {
-    "description": "不可恢复。批量删除动态住宅的多个子账号，ids 为英文逗号连接的子账号 id。",
+    "description": "不可恢复。批量删除动态住宅子账号，ids 为英文逗号连接的子账号 id，会使这些账号无法继续使用，不是退单或退款。先列明目标并确认，执行后重新查询核对；失败或超时不能假定全部未删除并直接重试。",
     "destructive": true,
     "inputSchema": {
       "additionalProperties": false,
@@ -1708,7 +1706,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
           "type": "string",
         },
         "spec": {
-          "description": "供应商 id，取 provider_list 返回的 id；不传查全部",
+          "description": "资源池编号，取 provider_list 返回的字符串数组元素并转为整数；不传查全部，期限流量需另外确认资源池适用性",
           "type": "integer",
         },
         "start_date": {
@@ -1743,7 +1741,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "子账号流量",
   },
   {
-    "description": "查询动态住宅某个子账号的流量上限设置与已用量。",
+    "description": "查询动态住宅某个子账号的流量上限设置与配置记录中的已用量，limit_flow 和 use_flow 单位 GB，cycle 为周期，disabled 为该配置记录的限流状态。未设置限制时返回空数组，不代表账号不存在。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -1790,7 +1788,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
       "page": 1,
       "pagesize": 100,
     },
-    "description": "分页查询多个动态住宅子账号的流量上限设置。",
+    "description": "分页查询多个动态住宅子账号的流量上限设置，仅返回已设置限制的记录，data 是记录数组，不是带 total/rows 的分页对象。limit_flow 和 use_flow 单位 GB；未返回的账号不能直接判定为不存在或已删除限制，先确认所有分页已读取。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -1955,7 +1953,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "子账号列表",
   },
   {
-    "description": "为子账号设置自定义用户名和密码，一次可传多个；覆盖 content 里每个子账号的账号与密码。",
+    "description": "设置子账号自定义账密，同时发送 SOCKS5、udp=false、failover=false 等默认连接配置，动态流量还发送 5 分钟切换间隔，不能保证仅修改账密。一次可传多个，覆盖 content 中的用户名和密码；执行前须明确告知并取得同意。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -2051,7 +2049,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "自定义子账号账密",
   },
   {
-    "description": "设置动态住宅某个子账号在一个周期内的流量上限，达到上限断开连接，下个周期恢复；同一个子账号只允许设置一个周期。",
+    "description": "设置动态住宅子账号的周期流量上限，同时向上游发送 SOCKS5、5 分钟切换间隔、udp=false、failover=false 等默认连接配置，不能保证只改限流。同一账号只保留一个周期配置，0 表示删除限制；后端按当前周期用量调整限流状态，执行前须明确告知并取得同意。删除限制不保证已经恢复连接，修改后应查询核对。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -2073,7 +2071,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
           "type": "integer",
         },
         "limit_flow": {
-          "description": "上限流量，单位 GB，0 到 1000000；传 0 表示删除该子账号的流量限制",
+          "description": "上限流量，单位 GB，0 到 100000000；传 0 表示删除该子账号的流量限制，不是禁止使用",
           "type": "integer",
         },
         "product": {
@@ -2112,7 +2110,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "设置子账号流量上限",
   },
   {
-    "description": "批量设置多个动态住宅子账号在同一周期内各自的流量上限；同一个子账号只允许设置一个周期。",
+    "description": "批量设置动态住宅子账号的流量上限，同时发送 SOCKS5、5 分钟切换间隔、udp=false、failover=false 等默认连接配置，不能保证只改限流。同一批使用相同周期，每个账号只保留一个周期配置，执行前须明确告知并取得同意。code=1 仍可能有部分失败，检查 success_count、fail_count、fail_messages；失败账号的原限流记录也可能被删除，不能假定回滚或自动重试，应重新查询配置。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -2186,7 +2184,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "批量设置子账号流量上限",
   },
   {
-    "description": "批量修改时长类子账号的密码，只改密码不改用户名；密码只能是字母和数字，长度 8 到 30。前提是子账号已设置过自定义用户名和密码，系统默认的账密不能用它改，要先用 sub_account_set_credentials 设置。",
+    "description": "批量修改时长类子账号的密码并沿用自定义用户名，同时发送 SOCKS5、udp=false、failover=false 等默认连接配置，不能保证仅改变密码。密码只能是字母和数字，长度 8 到 30；前提是已设置自定义用户名和密码，系统默认账密不能用此工具修改，不要自动改用同时覆盖用户名的工具。执行前须明确告知并取得同意。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -2316,7 +2314,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "批量开关端口连接",
   },
   {
-    "description": "修改动态住宅某个子账号的备注。",
+    "description": "修改动态住宅某个子账号的备注，同时后端会向上游发送 SOCKS5、5 分钟切换间隔、udp=false、failover=false 等默认连接配置，不能保证只改备注。执行前必须说明这些副作用并取得用户明确同意；当前工具没有保留原连接配置的参数。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,
@@ -2334,13 +2332,14 @@ exports[`spec/tools.json > 完整快照 1`] = `
           "type": "string",
         },
         "remark": {
-          "description": "备注",
+          "description": "要写入的备注；空字符串表示清空备注",
           "type": "string",
         },
       },
       "required": [
         "product",
         "id",
+        "remark",
       ],
       "type": "object",
     },
@@ -2363,7 +2362,7 @@ exports[`spec/tools.json > 完整快照 1`] = `
     "title": "修改子账号备注",
   },
   {
-    "description": "批量修改多个动态住宅子账号的备注或 IP 切换间隔，ids 为英文逗号连接的子账号 id。",
+    "description": "批量修改动态住宅子账号的备注或 IP 切换间隔，同时发送 SOCKS5、udp=false、failover=false 等默认连接配置，未传切换间隔时发送 5 分钟，不能保证只改指定字段。ids 为英文逗号连接的子账号 id；执行前须明确告知并取得同意，至少传入备注或切换间隔之一。",
     "destructive": false,
     "inputSchema": {
       "additionalProperties": false,

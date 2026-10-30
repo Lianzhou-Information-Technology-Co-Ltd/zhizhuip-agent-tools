@@ -38,7 +38,7 @@ describe('cfgFromEnv', () => {
   it('不传 baseUrl 用正式环境域名', () => {
     expect(cfgFromEnv({ ZHIZHUIP_TOKEN: 'sk-abc' }).baseUrl).toBe('https://www.zhizhuip.cc');
   });
-  it('缺 token 抛出带提示的错误，并说明要写在客户端配置里', () => {
+  it('缺 token 抛出带提示的错误，并说明统一安装与手工配置入口', () => {
     expect(() => cfgFromEnv({})).toThrow(/ZHIZHUIP_TOKEN/);
     expect(() => cfgFromEnv({})).toThrow(/API Keys/);
     expect(() => cfgFromEnv({})).toThrow(/-e ZHIZHUIP_TOKEN/);

@@ -8,15 +8,22 @@ import { callApi, cfgFromEnv, type Cfg } from './http.js';
 import { renderSetup } from './setup.js';
 import type { ToolDef } from './types.js';
 
-const USAGE = `用法：zhizhuip-mcp [--readonly] [--yes]
-      zhizhuip-mcp setup [--token 你的token] [--readonly] [--npx]
+const USAGE = `用法：zhizhuip-agent-tools [--readonly] [--yes]
+      zhizhuip-agent-tools install [--agents 客户端列表] [--scope global|project] [--readonly]
+      zhizhuip-agent-tools setup [--token 你的token] [--readonly] [--npx]
   不带参数     全部 44 个工具，含下单扣费与删除子账号；写操作执行前先向用户确认
   --readonly   只暴露 21 个只读工具
   --yes        写操作不确认直接执行，给自动化脚本用
+  install      一次安装 Skill 与 MCP；install --help 查看全部选项
   setup        打印 Claude Code、Claude Desktop、Codex、Cursor、VS Code、Zed、Windsurf 的配置片段，不改任何文件；
-               默认按本机安装路径生成，--npx 生成 npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-mcp 的写法`;
+               默认按本机安装路径生成，--npx 生成 npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools 的写法`;
 
 const argv = process.argv.slice(2);
+
+if (argv[0] === 'install') {
+  const { runInstall } = await import('./install.js');
+  process.exit(await runInstall(argv.slice(1)));
+}
 
 if (argv[0] === 'setup') {
   const withEq = argv.find(a => a.startsWith('--token='));
@@ -39,7 +46,7 @@ let cfg: Cfg;
 try {
   cfg = cfgFromEnv();
 } catch (e) {
-  console.error(`[zhizhuip-mcp] ${(e as Error).message}`);
+  console.error(`[zhizhuip-agent-tools] ${(e as Error).message}`);
   process.exit(2);
 }
 
@@ -58,12 +65,12 @@ const INSTRUCTIONS = `蜘蛛 IP（zhizhuip.com）对外接口 externalapi 的 MC
 - 国家参数一律用 ISO 3166-1 二字码（如 US），只有 ip_booking 填国家名称。
 - 下单、续费、带宽升级、删除类工具会从余额扣费或不可恢复：调用前先用 user_price、user_balance、coupon_list、sub_account_list 查清价格、余额、优惠券和操作对象，把参数与预计费用告诉用户并取得明确确认。
 - 动态不限流量（带宽）购买的 country 是入口国家（US、DE、SG），最低 10 Mbps；续费和升级前检查列表中的 can_renew、can_upgrade、refunding。user_price、official_price 尚不含此产品报价，费用和适用优惠券须先在网站核实，不能套用流量或静态 IP 的价格。
-- 写操作工具执行前必须经用户确认：支持弹窗的客户端会弹出操作预览让用户点选；没弹窗或不支持的客户端会返回预览和 confirm_token，要把预览原样转述给用户，得到明确同意后再带 confirm_token 用相同参数调用。返回文本说"弹窗没有得到确认"时，可能是客户端没显示弹窗，也可能是用户拒绝了，同样只转述一次，用户不要就停。不要替用户做决定，用户没回答就不要带确认码重试。每一次写操作都要单独确认，同样的操作再做一次也要重新问；确认码在用户回复之前不会生效，提前用会被拒。
+- 写操作工具执行前必须经用户确认：支持弹窗的客户端会弹出操作预览让用户点选；没弹窗或不支持的客户端会返回预览和 confirm_token，要把预览原样转述给用户，得到明确同意后再带 confirm_token 用相同参数调用。返回文本说"弹窗没有得到确认"时，可能是客户端没显示弹窗，也可能是用户拒绝了，同样只转述一次，用户不要就停。不要替用户做决定，用户没回答就不要带确认码重试。每一次写操作都要单独确认，同样的操作再做一次也要重新问；确认码有时间限制，但服务无法据此判断用户是否回复；助手必须等待用户明确同意，不能用等待时间替代授权。
 - 工具成功时返回 {code, msg, data} 的 JSON；失败时 isError 为 true，文本就是后端给出的原因。若提示 API Key 无效，请用户到网站 API Keys 页面核对或重新生成 API Key，并更新 ZHIZHUIP_TOKEN。
 - 动态住宅代理连接串的写法（cty/st/ct/ss/tm/spec 参数）见资源 ${SESSION_URI}。`;
 
 function createServer(): McpServer {
-  const server = new McpServer({ name: 'zhizhuip-mcp', version }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: 'zhizhuip-agent-tools', version }, { instructions: INSTRUCTIONS });
 
   const tokens = new ConfirmTokens(Date.now, cfg.confirmQuietMs);
   // 2026 版协议把客户端能力放在每个请求的信封里，2025 版放在连接初始化时
@@ -114,7 +121,7 @@ function createServer(): McpServer {
 
 if (!readonly) {
   console.error(yes
-    ? '[zhizhuip-mcp] --yes：写操作不经确认直接执行。'
-    : '[zhizhuip-mcp] 当前包含下单扣费与删除子账号的操作工具，执行前会向用户确认；只想查询请加 --readonly。');
+    ? '[zhizhuip-agent-tools] --yes：写操作不经确认直接执行。'
+    : '[zhizhuip-agent-tools] 当前包含下单扣费与删除子账号的操作工具，执行前会向用户确认；只想查询请加 --readonly。');
 }
-serveStdio(createServer, { onerror: e => console.error(`[zhizhuip-mcp] ${e.message}`) });
+serveStdio(createServer, { onerror: e => console.error(`[zhizhuip-agent-tools] ${e.message}`) });

@@ -1,46 +1,124 @@
-# zhizhuip-mcp
+# zhizhuip-agent-tools
 
-蜘蛛 IP（zhizhuip.com）对外 API 的 MCP 服务器。让 Claude Code、Claude Desktop 等 MCP 客户端可以查询子账号、流量、价格、库存，并在你确认后下单、续费、改配置。
+蜘蛛 IP（zhizhuip.com）的 AI 工具，包含 MCP 服务和面向客户的 Agent Skill。让 AI 助手帮助你选择产品、查询账号与用量、生成已有代理连接配置，并在你确认后购买、续费或管理子账号。
+
+- MCP 服务：包名、启动命令和 MCP 服务标识统一为 `zhizhuip-agent-tools`，客户端配置名保持 `zhizhuip`。
+- Agent Skill：[skills/zhizhuip/SKILL.md](skills/zhizhuip/SKILL.md)，提供产品选择和操作流程，依赖已连接的蜘蛛 MCP。
+
+本地仓库与 [GitHub 仓库](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools) 均为 `zhizhuip-agent-tools`。npm 包名、启动命令和 MCP 服务标识也统一为 `zhizhuip-agent-tools`，不保留旧名称兼容别名。
 
 完整的客户端配置和使用示例见 [使用指南](USAGE.md)。
 
 默认暴露全部 44 个工具，含下单扣费、续费、删除子账号；加 `--readonly` 只暴露 21 个只读工具，装了不会产生任何费用。23 个写操作执行前都会先向你确认（见下文"写操作确认"）：支持弹窗的客户端由你点确认，其它客户端由助手转述后再向你确认；不需要写操作的人直接配 `--readonly`。
 
-业务逻辑、参数校验、鉴权、扣费全部在后端完成，本项目只是一个 HTTP 客户端。
+业务逻辑、参数校验、鉴权、扣费全部在后端完成；MCP 负责接口调用，Skill 指导 AI 组织步骤和解释结果。
+
+## 一次安装 Skill 与 MCP
+
+先安装 Node.js 20 或更新版本（自带 npm/npx）和 Git，并准备蜘蛛 IP API Key。以下两种方式任选一种。
+
+**实际安装必须提供 API Key。** 安装器优先读取 `ZHIZHUIP_TOKEN`；未设置时会在交互终端提示“请输入蜘蛛 API Key（输入隐藏）”。没有 Key 就无法完成安装。非交互执行必须提前设置 `ZHIZHUIP_TOKEN`，并用 `--agents` 指定客户端；`--help`、`--list`、`--dry-run` 不需要 Key。
+
+**方式一：从 GitHub 自动下载并安装。** npx 会获取远程仓库代码、安装依赖并构建，再启动安装器；无需手动克隆或另行运行 `npm ci`：
+
+```bash
+npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools install
+```
+
+**方式二：下载源码后安装。** 在终端中进入你希望存放工具的目录，再依次执行：
+
+```bash
+git clone https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools.git
+cd zhizhuip-agent-tools
+npm ci
+node dist/src/index.js install
+```
+
+`git clone` 下载项目，`cd` 进入源码目录；`npm ci` 按锁文件安装依赖，并自动构建出 `dist/`，最后一条命令安装 Skill 与 MCP。已有本地源码时，进入包含 `package.json` 和 `package-lock.json` 的目录，从 `npm ci` 开始执行。
+
+两种方式都会提示选择 Agent；环境变量已有 Key 时不再询问，否则在本机隐藏输入一次。默认安装到用户全局范围，所有项目可用。需要显式设置 `ZHIZHUIP_TOKEN` 时，完整的 PowerShell 和 macOS/Linux 示例见[使用指南](USAGE.md#通过环境变量提供必填-api-key)。不要把真实 Key 放在命令参数、Skill 或聊天里。
+
+下面是源码方式的常用参数，在 `zhizhuip-agent-tools` 源码目录执行；GitHub 方式可将 `node dist/src/index.js` 替换为上面的完整 npx 命令（不含末尾的 `install`）：
+
+```bash
+# 同时配置三个客户端，也可继续加其他已适配客户端。
+node dist/src/index.js install --agents claude-code,cursor,codex
+# 查看适配列表与本机相关目录的检测结果。
+node dist/src/index.js install --list
+# 只预览，不读 Key、不写文件。
+node dist/src/index.js install --agents gemini-cli,opencode,vscode --dry-run
+# 仅安装查询工具。
+node dist/src/index.js install --agents cursor --readonly
+```
+
+| Agent ID | 客户端 | 安装范围 |
+| --- | --- | --- |
+| `claude-code` | Claude Code | global / project |
+| `cursor` | Cursor | global / project |
+| `codex` | Codex | global / project |
+| `gemini-cli` | Gemini CLI | global / project |
+| `opencode` | OpenCode | global / project |
+| `windsurf` | 经典 Windsurf | global |
+| `cline` | Cline 的 VS Code 扩展 | global，默认 VS Code 用户配置 |
+| `vscode` | VS Code Copilot | global / project，默认 VS Code 用户配置 |
+
+`--scope project` 指执行命令时的当前目录。只为某个业务项目安装时，先进入该业务项目目录，再运行 GitHub npx 安装命令并加 `--scope project`；使用本地源码时，改用 `node "<工具源码目录的绝对路径>/dist/src/index.js" install --scope project`。不要在工具源码目录中直接指定项目范围，除非要接入的正是这个目录。安装器复制同包 Skill 与 MCP 的生产运行文件到固定位置，统一配置所选客户端；不会依赖之后可能被清理的 npx 缓存。现有其他服务与设置保留，更新前备份，重复运行同一命令可更新或修复；默认保留 MCP 写操作确认，不支持 `install --yes`。客户端原有的停用或信任设置仍需自行核对。
+
+API Key 保存在当前用户的 `~/.zhizhuip-agent-tools/credentials/`，客户端配置只引用凭证文件；启动器优先使用进程中的 `ZHIZHUIP_TOKEN`，没有时从该文件读取并设置此变量后启动 MCP。因此配置中没有明文 token 也仍有鉴权。各项目范围使用独立文件，全局安装共享一个 Key。不要提交或分享该目录及配置备份。POSIX 下设置私有权限，Windows 使用当前用户目录已有 ACL。更新全局 Key 会影响此前使用该全局文件的蜘蛛客户端；既有备份也可能含旧 Key。
+
+完成后重新加载所选客户端，检查 `zhizhuip` Skill 和 MCP 工具。客户端若要求信任项目、启用 Skills 或允许 MCP，按其提示处理。`--list` 的目录检测不证明软件已安装；当前验证包含各配置格式和隔离安装、真实本地 stdio 调用，尚未逐个启动上述 GUI/CLI 做加载验收。远程开发、不同 VS Code Profile、Insiders 和其他宿主中的 Cline 不属于该默认路径适配范围；Windsurf 仅适配经典 `.codeium/windsurf` 目录，不覆盖 Devin 的新配置路径。
+
+指定多个客户端的 GitHub 安装命令：
+
+```bash
+npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools install --agents claude-code,cursor,codex
+```
+
+GitHub 命令获取远程仓库版本，本地尚未推送的修改不会包含其中。开发中的安装器请通过本地命令运行；更新与修复见 [使用指南](USAGE.md#8-本地安装与更新)。
+
+只需要手工配置 MCP 的用户仍可使用下文 `setup`；它只打印片段。只想单独安装 Skill，也可用 `npx skills add . --skill zhizhuip`，但该命令不会配置 MCP，且第三方 Skills CLI 另有 Node.js 版本要求，见其[命令文档](https://github.com/vercel-labs/skills/blob/main/docs/commands.md)。统一安装器本身保持本项目 Node.js 20 基线。
+
+安装后可以提问：
+
+- “使用蜘蛛 IP，帮我选一个适合固定出口的产品，先查价格。”
+- “用我已有的美国动态住宅账号生成 20 分钟会话配置，不创建账号。”
+- “查询我的蜘蛛账号最近 7 天流量，并列出即将到期的代理。”
+
+Skill 的 [44 个工具覆盖表](skills/zhizhuip/references/tool-map.md) 关联产品、后端入口、前提和结果核对流程；[场景清单](test/evals/scenarios.md) 与 [调用样例](test/evals/tool-cases.json) 用于维护。报价或状态查询缺口、后端配置副作用均明确说明，覆盖工具不等于所有业务都能自动闭环。
 
 ## 环境要求
 
-Node.js 20 或更新（推荐当前 LTS），Windows、macOS、Linux 均可。用方式一（npx）还要求本机装有 `git` 并能访问 GitHub。
+Node.js 20 或更新，安装包需提供 npm/npx。统一安装器包含 Windows、macOS、Linux 路径适配；客户端本身支持的系统以其说明为准。从 GitHub 安装还需要 Git，并能访问 GitHub 与 npm。
 
 ## 获取 token
 
-token 就是网站的 API Key，永久有效，每个账号最多 20 个：
+token 就是网站 API Keys 页面生成的 API Key：
 
 1. 登录蜘蛛 IP 网站，点右上角头像，进 API Keys（手机端在"我的"里）。
-2. 新建一个 Key，复制形如 `sk-…` 的完整字符串（35 位）。
-3. 填到下文配置里的 `ZHIZHUIP_TOKEN`。
+2. 新建一个 Key，复制以 `sk-` 开头的完整内容。
+3. 统一安装时在终端隐藏输入；手工配置时填入该服务的 `ZHIZHUIP_TOKEN`。
 
 Key 被删除或复制不完整时，工具会返回"API Key 无效"，到 API Keys 页面核对或重新生成后更新配置即可。Key 等同于账号权限，不要分享给他人或写进客户端代码。
 
-## 安装
+## 仅配置 MCP（手工方式）
 
-两种方式任选一种。
+已完成统一安装的客户端无需再重复执行本节。只需要 MCP 或使用统一安装器尚未适配的客户端时，选择以下一种方式；Skill 需要另行安装。
 
-### 方式一：npx，不用下载安装（推荐）
+### 方式一：由客户端通过 npx 启动
 
-客户端配置里把启动命令写成 `npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-mcp`。客户端第一次拉起时自动从 GitHub 取源码、装依赖、编译并缓存，之后直接复用；第一次会慢一两分钟。
+客户端配置里把启动命令写成 `npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools`。客户端第一次拉起时自动从 GitHub 取源码、装依赖、编译并缓存，之后直接复用；启动耗时取决于网络和构建环境。
 
-先跑一条命令把所有客户端的配置片段打印出来，贴进你用的那个即可（只打印，不改任何文件）：
+先打印带占位 Key 的配置片段，在本机编辑后填到对应客户端。`setup` 只打印，不写配置；如显式传 `--token`，该 Key 会出现在输出中。
 
 ```bash
-npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-mcp setup --npx --token 你的token
-npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-mcp setup --npx --token 你的token --readonly   # 只读版
+npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools setup --npx
+npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools setup --npx --readonly   # 只读版
 ```
 
 两个最常用的示例。Claude Code：
 
 ```bash
-claude mcp add -s user -e ZHIZHUIP_TOKEN=你的token zhizhuip -- npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-mcp
+claude mcp add -s user -e ZHIZHUIP_TOKEN=YOUR_API_KEY zhizhuip -- npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools
 ```
 
 Claude Desktop 的 `claude_desktop_config.json`：
@@ -50,8 +128,8 @@ Claude Desktop 的 `claude_desktop_config.json`：
   "mcpServers": {
     "zhizhuip": {
       "command": "npx",
-      "args": ["-y", "github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-mcp"],
-      "env": { "ZHIZHUIP_TOKEN": "你的token" }
+      "args": ["-y", "github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools"],
+      "env": { "ZHIZHUIP_TOKEN": "YOUR_API_KEY" }
     }
   }
 }
@@ -62,21 +140,21 @@ Claude Desktop 的 `claude_desktop_config.json`：
 ### 方式二：克隆仓库，本地构建
 
 ```bash
-git clone https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-mcp.git
-cd zhizhuip-mcp
+git clone https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools.git zhizhuip-agent-tools
+cd zhizhuip-agent-tools
 npm ci
 ```
 
 `npm ci` 结束时会自动编译到 `dist/`。启动命令是 `node <安装目录>/dist/src/index.js`，只读加 `--readonly`，自动化脚本加 `--yes` 跳过写操作确认。配置片段同样用 setup 打印：
 
 ```bash
-node <安装目录>/dist/src/index.js setup --token 你的token
+node <安装目录>/dist/src/index.js setup
 ```
 
-Claude Code（`<安装目录>` 换成实际路径，Windows 也用正斜杠，例如 `C:/tools/zhizhuip-mcp`）：
+Claude Code（`<安装目录>` 换成实际路径，Windows 也用正斜杠，例如 `C:/tools/zhizhuip-agent-tools`）：
 
 ```bash
-claude mcp add -s user -e ZHIZHUIP_TOKEN=你的token zhizhuip -- node <安装目录>/dist/src/index.js
+claude mcp add -s user -e ZHIZHUIP_TOKEN=YOUR_API_KEY zhizhuip -- node <安装目录>/dist/src/index.js
 ```
 
 ## 配置
@@ -90,26 +168,26 @@ claude mcp add -s user -e ZHIZHUIP_TOKEN=你的token zhizhuip -- node <安装目
 | `ZHIZHUIP_TIMEOUT_MS` | 否 | `30000` | 单次请求超时（毫秒） |
 | `ZHIZHUIP_CONFIRM_QUIET_MS` | 否 | `10000` | 确认码发出后多久才能用（毫秒），见下文"写操作确认" |
 
-setup 的输出按客户端分段：Claude Code 与 Codex CLI 各一条可直接执行的命令，Claude Desktop、Cursor、Windsurf/Devin、VS Code、Zed 各给配置文件位置和 JSON 或 TOML 片段，最后一段是任何支持 stdio 的客户端都能用的标准 `mcpServers` JSON。
+setup 的输出按客户端分段：Claude Code 与 Codex CLI 各一条可直接执行的命令，Claude Desktop、Cursor、经典 Windsurf、VS Code、Zed 各给配置文件位置和 JSON 或 TOML 片段，最后一段是任何支持 stdio 的客户端都能用的标准 `mcpServers` JSON。
 
-注意：服务是被客户端当子进程拉起的，只继承一小份白名单环境变量，你在终端里 `export` 或 `$env:` 设置的 `ZHIZHUIP_TOKEN` 传不进去，token 必须写在客户端配置里。
+注意：客户端不一定继承另一个终端中的环境变量。手工接入时通过客户端 MCP 配置提供 `ZHIZHUIP_TOKEN`；统一安装器则由启动器读取私有凭证文件，再传给 MCP 进程。
 
 ## 写操作确认
 
 新增、修改、下单、续费、升级、退单、预约、删除这 23 个工具执行前都会先向你确认：
 
-- 客户端支持 MCP 的弹窗确认（elicitation）时，会弹出操作预览（工具、参数、产品名），你点确认后才请求后端。弹窗没得到确认（你点了拒绝或关掉，或者客户端声明支持却没显示弹窗）都会退到下面的确认码方式，由助手在对话里再向你确认一次，你不同意就不执行。
+- 客户端支持 MCP 的弹窗确认（elicitation）时，会弹出操作预览（工具、参数、产品名），你点确认后才请求后端。弹窗未确认时，协议实现可能返回确认码备用流程；如果你已经明确拒绝或取消，助手应停止，不能因为拿到确认码而继续执行或反复询问。
 - 客户端不支持时，第一次调用只返回预览和一个 5 分钟有效、只能用一次的确认码，AI 要把预览告诉你，你同意后它再带确认码用同样参数调一次。
-- 确认码发出后 10 秒内不能用，提前用一次生效时间就顺延一次：AI 拿到确认码不问你就直接重调会被拒；你看完预览再回复通常超过 10 秒，不受影响。每一次操作都单独确认。间隔可用 `ZHIZHUIP_CONFIRM_QUIET_MS` 调整。
+- 确认码发出后默认有 10 秒静默期，提前重试会顺延可用时间。时间条件不能证明用户已经同意；助手必须等待明确回复，每次写操作单独确认。`ZHIZHUIP_CONFIRM_QUIET_MS` 只改变时间限制，不能替代授权。
 - 这层确认与客户端自带的工具权限弹窗是叠加的，可能问两次。
-- 自动化脚本不想被打断，启动参数加 `--yes`，写操作直接执行。`--readonly` 模式没有写工具，不涉及确认。
+- 直接启动 MCP 的自动化脚本可显式使用 `--yes` 关闭确认；统一安装器不接受这个选项。`--readonly` 按工具标记过滤写工具，其中 `main_account_switch_token` 首次读取仍可能在后端生成并保存 token，不作为通用健康检查。
 
 ## 调试
 
 不接客户端、想直接看工具列表或手动调一个工具，用官方 Inspector，token 同样要通过它的 `-e` 传入：
 
 ```bash
-npx @modelcontextprotocol/inspector -e ZHIZHUIP_TOKEN=你的token -- node <安装目录>/dist/src/index.js
+npx @modelcontextprotocol/inspector -e ZHIZHUIP_TOKEN=YOUR_API_KEY -- node <安装目录>/dist/src/index.js
 ```
 
 ## 工具清单
@@ -178,18 +256,18 @@ npx @modelcontextprotocol/inspector -e ZHIZHUIP_TOKEN=你的token -- node <安�
 
 资源 `zhizhuip://docs/dynamic-proxy-session`：动态住宅代理连接串的参数写法与示例。
 
-工具的参数、类型与必填项由文档站生成，调用时 SDK 会先按 JSON Schema 校验，不符合的参数直接返回错误，不会打到后端。
+工具由下载的接口源页结合 `spec/overrides.yaml` 中的后端核对修正生成。调用时 SDK 按 JSON Schema 校验，后端继续做业务条件校验；源页不是当前 MCP 的最终参数合同。
 
 ## 跟随文档站更新
 
-工具定义由 <https://develop.zhizhuip.com/llms.txt> 生成，不手写：
+接口来源为 [文档站索引](https://develop.zhizhuip.com/llms.txt)，维护流程见 [规格目录说明](spec/README.md)。`spec/pages/` 保留下载源快照，现行工具以 `spec/tools.json` 和运行时 schema 为准：
 
 ```bash
-npm run sync-docs   # 下载全部接口页到 spec/pages/，重新生成 spec/tools.json，打印与上一版的差异
+npm run sync-docs   # 联网更新源快照并生成工具，随后审查差异
 npm test            # 若快照变化且差异合理：npx vitest run -u 更新快照
 ```
 
-新增接口会让生成失败并列出路径，把它加进 `spec/overrides.yaml`（或 `ignore`）再跑一次。工具名、中文描述、标注、产品列表与文档缺陷的修正都在 `spec/overrides.yaml`。
+Session 原始下载另存为 `spec/source/dynamic-proxy-session.md`，审查后再更新对外的 `spec/dynamic-proxy-session.md`，不会直接覆盖已核对的说明。新增接口会让生成失败并列出路径，把它加进 `spec/overrides.yaml`（或 `ignore`）再跑一次。工具名、中文描述、标注、产品列表与文档缺陷的修正都在 `spec/overrides.yaml`。
 
 ## 开发
 
@@ -204,4 +282,4 @@ npm run build-spec     # 只用本地 spec/pages 重新生成 tools.json（不�
 
 ## 许可
 
-MIT，见 `LICENSE`。
+MIT，见 [LICENSE](LICENSE)。
