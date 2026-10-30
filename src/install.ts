@@ -484,9 +484,11 @@ export async function runInstall(argv: string[], context: Partial<InstallContext
   const c: InstallContext = {
     home: homedir(), cwd: process.cwd(), packageRoot: fileURLToPath(new URL('../../', import.meta.url)), platform: process.platform,
     env: process.env, nodePath: process.execPath, interactive: !!process.stdin.isTTY && !!process.stdout.isTTY,
-    output: message => console.log(
-      message.startsWith('API Key 验证失败') && process.stdout.isTTY && process.stdout.hasColors?.()
-        ? `\x1b[1;31m${message}\x1b[0m` : message),
+    output: message => {
+      const color = message.startsWith('API Key 验证失败') ? 31
+        : message === 'API Key 验证通过，开始安装。' || message.endsWith('：Skill 和 MCP 配置已安装') || message === '请重启对应客户端，即可使用蜘蛛 IP。' ? 32 : undefined;
+      console.log(color && process.stdout.isTTY && process.stdout.hasColors?.() ? `\x1b[1;${color}m${message}\x1b[0m` : message);
+    },
     secret: readToken, fetch,
     ask: async message => { const rl = createInterface({ input: process.stdin, output: process.stdout }); try { return await rl.question(message); } finally { rl.close(); } },
     ...context,
