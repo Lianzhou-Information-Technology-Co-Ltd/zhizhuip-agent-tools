@@ -48,7 +48,7 @@ paths:
                   example: 1
                 ip_list:
                   description: 白名单列表,多个以英文逗号分隔
-                  example: 129.34.52.111,149.40.66.89
+                  example: "192.0.2.1,192.0.2.2"
                   type: string
               required:
                 - type

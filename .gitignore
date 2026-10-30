@@ -3,4 +3,7 @@ dist/
 .vitest/
 .mcp.json
 .codex/config.toml
-docs/*
+# 本地维护记录及待审阅的下载原文不公开。
+/docs/
+/.superpowers/
+/spec/source/

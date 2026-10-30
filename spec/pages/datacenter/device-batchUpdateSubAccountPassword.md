@@ -43,7 +43,7 @@ paths:
                   type: string
                 content[0][customPassword]:
                   description: 自定义密码。只能是大小字母和数字。长度8-30个字符之间
-                  example: passxsasd
+                  example: "demoPassword1"
                   type: string
                 content[1][id]:
                   description: 子账号id。

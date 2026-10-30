@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
+import { createServer } from 'node:http';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -8,7 +9,7 @@ import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { parse as parseJsonc } from 'jsonc-parser';
 import * as TOML from '@iarna/toml';
-import { AGENTS, createInstallPlan, installFromPlan, mergeClientConfig, parseInstallArgs, runInstall, runtimeAssets, type InstallContext, type InstallTarget } from '../src/install.js';
+import { AGENTS, createInstallPlan, formatTokenInput, installFromPlan, mergeClientConfig, parseInstallArgs, runInstall, runtimeAssets, type InstallContext, type InstallTarget } from '../src/install.js';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -38,6 +39,7 @@ function fixture(): InstallContext & { root: string; messages: string[] } {
   put(join(packageRoot, 'node_modules/dep-b/package.json'), JSON.stringify({ name: 'dep-b', version: '2.0.0', type: 'module', main: 'index.js' }));
   put(join(packageRoot, 'node_modules/dep-b/index.js'), `export default 'b';`);
   return { root, home, cwd, packageRoot, messages, platform: process.platform, env: {}, nodePath: process.execPath, interactive: false,
+    fetch: vi.fn(async () => new Response(JSON.stringify({ code: 1, data: { id: 1 } }))),
     output: message => messages.push(message), ask: vi.fn(async () => ''), secret: vi.fn(async () => 'fixture-secret') };
 }
 /** 按指定客户端生成测试安装计划。
@@ -278,35 +280,146 @@ describe('固定运行目录和失败隔离', () => {
 describe('CLI 引导和无写入预览', () => {
   it.each([['--help'], ['--list']].map(args => ({ args })))('$args 不需要 Key、不写文件', async ({ args }) => {
     const c = fixture(); expect(await runInstall(args, c)).toBe(0);
-    expect(c.secret).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
+    expect(c.secret).not.toHaveBeenCalled(); expect(c.fetch).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
   });
-  it('dry-run 不读取 Key、不调用隐藏输入、不写文件', async () => {
+  it('dry-run 不读取 Key、不调用输入或验证接口、不写文件', async () => {
     const c = fixture(); c.interactive = true;
     Object.defineProperty(c.env, 'ZHIZHUIP_TOKEN', { get: () => { throw new Error('must not read token'); } });
     expect(await runInstall(['--agents', 'codex,cursor', '--dry-run'], c)).toBe(0);
-    expect(c.secret).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
+    expect(c.secret).not.toHaveBeenCalled(); expect(c.fetch).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
   });
   it('非交互且未指定客户端时拒绝，不自动安装全部', async () => {
     const c = fixture(); c.env.ZHIZHUIP_TOKEN = 'fixture-key';
-    expect(await runInstall([], c)).toBe(1); expect(readdirSync(c.home)).toEqual([]);
+    expect(await runInstall([], c)).toBe(1); expect(c.fetch).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
   });
   it('缺 Key 的非交互执行不写入配置', async () => {
-    const c = fixture(); expect(await runInstall(['--agents', 'cursor'], c)).toBe(1); expect(readdirSync(c.home)).toEqual([]);
+    const c = fixture(); expect(await runInstall(['--agents', 'cursor'], c)).toBe(1); expect(c.fetch).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
   });
-  it('交互多选并使用隐藏输入，输出没有 Key', async () => {
+  it('交互多选后验证输入的 Key，安装输出不回显完整 Key', async () => {
     const c = fixture(); c.interactive = true; c.ask = vi.fn(async () => 'codex,cursor');
     expect(await runInstall([], c)).toBe(0); expect(c.ask).toHaveBeenCalledOnce(); expect(c.secret).toHaveBeenCalledOnce();
+    expect(c.fetch).toHaveBeenCalledOnce();
+    expect(new Headers(vi.mocked(c.fetch).mock.calls[0][1]?.headers).get('token')).toBe('fixture-secret');
     expect(c.messages.join('\n')).not.toContain('fixture-secret');
   });
   it('环境 Key 优先，安装输出不包含 Key', async () => {
-    const c = fixture(); c.interactive = true; c.env.ZHIZHUIP_TOKEN = 'fixture-env-key';
+    const c = fixture(); c.interactive = true; c.env.ZHIZHUIP_TOKEN = ' fixture-env-key ';
+    c.fetch = vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      expect(readdirSync(c.home)).toEqual([]); expect(readdirSync(c.cwd)).toEqual([]);
+      expect(String(input)).toBe('https://www.zhizhuip.cc/externalapi/user/getGetUserInfo?is_mcp_send=1');
+      expect(init).toMatchObject({ method: 'GET', redirect: 'error' });
+      expect(Object.fromEntries(new Headers(init?.headers))).toEqual({
+        token: 'fixture-env-key', accept: 'application/json', 'accept-language': 'zh-CN', 'user-agent': 'zhizhuip mcp',
+      });
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      return new Response(JSON.stringify({ code: 1, data: { id: 1, email: 'private@example.test' } }));
+    });
     expect(await runInstall(['--agents', 'cursor'], c)).toBe(0); expect(c.secret).not.toHaveBeenCalled();
+    expect(c.fetch).toHaveBeenCalledOnce();
     expect(c.messages.join('\n')).not.toContain('fixture-env-key');
+    expect(c.messages.join('\n')).not.toContain('private@example.test');
   });
   it('解析错误不泄露配置中的敏感内容', async () => {
     const c = fixture(); c.env.ZHIZHUIP_TOKEN = 'fixture-env-key'; const p = plan(c, ['codex']);
     put(p.targets[0].configPath, 'ZHIZHUIP_TOKEN = "private-malformed-secret');
     expect(await runInstall(['--agents', 'codex'], c)).toBe(1);
     expect(c.messages.join('\n')).not.toContain('private-malformed-secret');
+  });
+});
+
+describe('安装前验证 API Key', () => {
+  it.each([
+    { name: 'HTTP 401', status: 401, body: '<html>private-profile sk-bad-key</html>', auth: true },
+    { name: 'HTTP 403', status: 403, body: '{}', auth: true },
+    { name: '业务 401', status: 200, body: '{"code":401,"msg":"private-profile sk-bad-key"}', auth: true },
+    { name: '业务字符串 403', status: 200, body: '{"code":"403"}', auth: true },
+    { name: 'HTTP 503 即使正文声称成功', status: 503, body: '{"code":1,"data":{"id":1}}' },
+    { name: '业务失败', status: 200, body: '{"code":0,"msg":"private-profile sk-bad-key"}' },
+    { name: '限流', status: 429, body: '{"code":0}' },
+    { name: '非 JSON', status: 200, body: '<html>private-profile sk-bad-key</html>' },
+    { name: 'null 响应', status: 200, body: 'null' },
+    { name: '布尔值成功码', status: 200, body: '{"code":true,"data":{"id":1}}' },
+    { name: '缺少用户信息', status: 200, body: '{"code":1}' },
+    { name: '用户信息为数组', status: 200, body: '{"code":1,"data":[]}' },
+    { name: '用户编号为零', status: 200, body: '{"code":1,"data":{"id":0}}' },
+    { name: '用户编号为布尔值', status: 200, body: '{"code":1,"data":{"id":true}}' },
+    { name: '用户编号为小数', status: 200, body: '{"code":1,"data":{"id":1.5}}' },
+  ])('$name 拒绝安装且没有新增文件或敏感响应输出', async ({ status, body, auth }) => {
+    const c = fixture(); c.env.ZHIZHUIP_TOKEN = 'sk-bad-key'; c.beforeWrite = vi.fn();
+    c.fetch = vi.fn(async () => new Response(body, { status }));
+    expect(await runInstall(['--agents', 'codex,cursor', '--scope', 'project'], c)).toBe(1);
+    expect(c.fetch).toHaveBeenCalledOnce(); expect(c.beforeWrite).not.toHaveBeenCalled();
+    expect(readdirSync(c.home)).toEqual([]); expect(readdirSync(c.cwd)).toEqual([]);
+    expect(c.messages.join('\n')).toContain('API Key 验证失败');
+    if (auth) expect(c.messages.join('\n')).toMatch(/无效|权限/);
+    expect(c.messages.join('\n')).not.toContain('sk-bad-key');
+    expect(c.messages.join('\n')).not.toContain('private-profile');
+    expect(c.messages.join('\n')).not.toContain('已安装');
+  });
+
+  it.each([
+    { name: '网络断开', error: new Error('private-profile sk-bad-key') },
+    { name: '超时', error: new DOMException('private-profile sk-bad-key', 'TimeoutError') },
+  ])('$name 停止安装并保留已有凭证、配置和 Skill', async ({ error }) => {
+    const c = fixture(); c.env.ZHIZHUIP_TOKEN = 'sk-bad-key'; const p = plan(c, ['cursor']);
+    const paths = [p.credentialPath, p.targets[0].configPath, join(p.targets[0].skillPath, 'SKILL.md')];
+    const contents = ['{"token":"previous-key"}\n', '{"mcpServers":{"other":{"command":"keep"}}}\n', '# Existing Skill\n'];
+    paths.forEach((path, index) => put(path, contents[index]));
+    const beforeFiles = readdirSync(c.home, { recursive: true }).sort();
+    c.fetch = vi.fn(async () => { throw error; }); c.beforeWrite = vi.fn();
+    expect(await runInstall(['--agents', 'cursor'], c)).toBe(1);
+    expect(c.beforeWrite).not.toHaveBeenCalled(); expect(c.fetch).toHaveBeenCalledOnce();
+    expect(paths.map(path => readFileSync(path, 'utf8'))).toEqual(contents);
+    expect(readdirSync(c.home, { recursive: true }).sort()).toEqual(beforeFiles);
+    expect(c.messages.join('\n')).toContain('API Key 验证失败');
+    expect(c.messages.join('\n')).not.toContain('sk-bad-key');
+    expect(c.messages.join('\n')).not.toContain('private-profile');
+  });
+
+  it('空白交互输入不请求验证、不写文件', async () => {
+    const c = fixture(); c.interactive = true; c.secret = vi.fn(async () => '   ');
+    expect(await runInstall(['--agents', 'cursor'], c)).toBe(1);
+    expect(c.fetch).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
+  });
+
+  it('回环 HTTP 验证成功后安装；重新输入错误 Key 时不覆盖旧安装', async () => {
+    const c = fixture(); c.fetch = fetch; c.env.ZHIZHUIP_TOKEN = 'sk-loopback-valid';
+    let valid = true;
+    const hits: { url?: string; method?: string; token?: string; language?: string }[] = [];
+    const backend = createServer((req, res) => {
+      hits.push({ url: req.url, method: req.method, token: req.headers.token as string, language: req.headers['accept-language'] });
+      res.writeHead(valid ? 200 : 401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(valid ? { code: '1', data: { id: '7', email: 'private@example.test' } } : { code: 401, msg: 'sk-loopback-invalid' }));
+    });
+    await new Promise<void>(resolve => backend.listen(0, '127.0.0.1', resolve));
+    try {
+      c.env.ZHIZHUIP_BASE_URL = `http://127.0.0.1:${(backend.address() as { port: number }).port}`;
+      expect(await runInstall(['--agents', 'cursor'], c)).toBe(0);
+      expect(hits).toEqual([{ method: 'GET', url: '/externalapi/user/getGetUserInfo?is_mcp_send=1', token: 'sk-loopback-valid', language: 'zh-CN' }]);
+      const p = plan(c, ['cursor']); const paths = [p.credentialPath, p.targets[0].configPath];
+      const before = paths.map(path => readFileSync(path)); const beforeFiles = readdirSync(c.home, { recursive: true }).sort();
+      valid = false; c.env.ZHIZHUIP_TOKEN = 'sk-loopback-invalid';
+      expect(await runInstall(['--agents', 'cursor'], c)).toBe(1);
+      expect(hits).toHaveLength(2); expect(hits[1].token).toBe('sk-loopback-invalid');
+      expect(paths.map(path => readFileSync(path))).toEqual(before);
+      expect(readdirSync(c.home, { recursive: true }).sort()).toEqual(beforeFiles);
+      expect(c.messages.join('\n')).not.toContain('sk-loopback-valid');
+      expect(c.messages.join('\n')).not.toContain('sk-loopback-invalid');
+      expect(c.messages.join('\n')).not.toContain('private@example.test');
+    } finally {
+      backend.closeAllConnections();
+      await new Promise<void>((resolve, reject) => backend.close(error => error ? reject(error) : resolve()));
+    }
+  });
+});
+
+describe('API Key 输入展示', () => {
+  it.each([
+    ['', ''], ['sk-1234', 'sk-1234'], ['12345678', '12345678'],
+    ['sk-123456', 'sk-1*3456'], ['sk-1234567890abcd', 'sk-1********abcd'],
+    ['sk-' + 'a'.repeat(64) + 'wxyz', 'sk-a********wxyz'],
+  ])('输入 %s 时显示 %s', (input, expected) => {
+    expect(formatTokenInput(input)).toBe(expected);
+    expect(formatTokenInput(input).length).toBeLessThanOrEqual(16);
   });
 });

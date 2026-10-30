@@ -144,7 +144,7 @@ paths:
                   rows:
                     - id: 1
                       sub_account: 1
-                      username: xxxxx-1
+                      username: "demo_user"
                       password: xxxxxx
                       protocol: SOCKS5
                       port: 5001

@@ -269,12 +269,12 @@ paths:
                 data:
                   total: 1
                   rows:
-                    - password: '111222'
+                    - password: "demoPassword1"
                       username: demo-1
                       id: 1
                       is_bind: 否
                       bindUser: demo-1
-                      bindPassword: '111222'
+                      bindPassword: "demoPassword1"
                       createTime: '2023-10-13 09:38:14'
                       port: 5001
                       agree: HTTP

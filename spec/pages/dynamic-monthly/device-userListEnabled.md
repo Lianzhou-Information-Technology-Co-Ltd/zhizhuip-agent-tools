@@ -73,7 +73,7 @@ paths:
                 msg: 获取成功!
                 time: '1736767170'
                 data:
-                  token: tokenasd
+                  token: "demo_token"
           headers: {}
           x-apifox-name: 成功
       security: []

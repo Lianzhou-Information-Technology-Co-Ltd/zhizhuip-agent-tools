@@ -15,7 +15,8 @@
     "dist/src",
     "spec/tools.json",
     "spec/dynamic-proxy-session.md",
-    "skills/zhizhuip"
+    "skills/zhizhuip",
+    "USAGE.md"
   ],
   "engines": {
     "node": ">=20"

@@ -2,14 +2,12 @@
 
 蜘蛛 IP（zhizhuip.com）的 AI 工具，包含 MCP 服务和面向客户的 Agent Skill。让 AI 助手帮助你选择产品、查询账号与用量、生成已有代理连接配置，并在你确认后购买、续费或管理子账号。
 
-- MCP 服务：包名、启动命令和 MCP 服务标识统一为 `zhizhuip-agent-tools`，客户端配置名保持 `zhizhuip`。
+- MCP 服务：npm 包名、启动命令和服务标识为 `zhizhuip-agent-tools`，客户端中的配置名为 `zhizhuip`。
 - Agent Skill：[skills/zhizhuip/SKILL.md](skills/zhizhuip/SKILL.md)，提供产品选择和操作流程，依赖已连接的蜘蛛 MCP。
-
-本地仓库与 [GitHub 仓库](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools) 均为 `zhizhuip-agent-tools`。npm 包名、启动命令和 MCP 服务标识也统一为 `zhizhuip-agent-tools`，不保留旧名称兼容别名。
 
 完整的客户端配置和使用示例见 [使用指南](USAGE.md)。
 
-默认暴露全部 44 个工具，含下单扣费、续费、删除子账号；加 `--readonly` 只暴露 21 个只读工具，装了不会产生任何费用。23 个写操作执行前都会先向你确认（见下文"写操作确认"）：支持弹窗的客户端由你点确认，其它客户端由助手转述后再向你确认；不需要写操作的人直接配 `--readonly`。
+默认暴露全部 44 个工具，含下单扣费、续费、删除子账号；加 `--readonly` 只暴露 21 个只读工具。安装本身不会购买产品。23 个写操作执行前都会先向你确认（见下文"写操作确认"）：支持弹窗的客户端由你点确认，其它客户端由助手转述后再向你确认；不需要写操作的人直接配 `--readonly`。
 
 业务逻辑、参数校验、鉴权、扣费全部在后端完成；MCP 负责接口调用，Skill 指导 AI 组织步骤和解释结果。
 
@@ -17,7 +15,7 @@
 
 先安装 Node.js 20 或更新版本（自带 npm/npx）和 Git，并准备蜘蛛 IP API Key。以下两种方式任选一种。
 
-**实际安装必须提供 API Key。** 安装器优先读取 `ZHIZHUIP_TOKEN`；未设置时会在交互终端提示“请输入蜘蛛 API Key（输入隐藏）”。没有 Key 就无法完成安装。非交互执行必须提前设置 `ZHIZHUIP_TOKEN`，并用 `--agents` 指定客户端；`--help`、`--list`、`--dry-run` 不需要 Key。
+**实际安装必须通过 API Key 验证。** 安装器优先读取 `ZHIZHUIP_TOKEN`；未设置时在交互终端输入，显示首尾各 4 位，中间用星号遮住。写入运行文件、Skill、凭证和客户端配置之前，会查询只读用户信息接口验证 Key；无效 Key、网络错误、超时或异常响应都会停止安装，保留已有配置与凭证。非交互执行必须提前设置 `ZHIZHUIP_TOKEN`，并用 `--agents` 指定客户端；`--help`、`--list`、`--dry-run` 不需要 Key，也不发送验证请求。
 
 **方式一：从 GitHub 自动下载并安装。** npx 会获取远程仓库代码、安装依赖并构建，再启动安装器；无需手动克隆或另行运行 `npm ci`：
 
@@ -36,7 +34,7 @@ node dist/src/index.js install
 
 `git clone` 下载项目，`cd` 进入源码目录；`npm ci` 按锁文件安装依赖，并自动构建出 `dist/`，最后一条命令安装 Skill 与 MCP。已有本地源码时，进入包含 `package.json` 和 `package-lock.json` 的目录，从 `npm ci` 开始执行。
 
-两种方式都会提示选择 Agent；环境变量已有 Key 时不再询问，否则在本机隐藏输入一次。默认安装到用户全局范围，所有项目可用。需要显式设置 `ZHIZHUIP_TOKEN` 时，完整的 PowerShell 和 macOS/Linux 示例见[使用指南](USAGE.md#通过环境变量提供必填-api-key)。不要把真实 Key 放在命令参数、Skill 或聊天里。
+未指定客户端时会提示选择 Agent；环境变量已有 Key 时不再询问，否则在本机输入并核对首尾字符。默认安装到用户全局范围，所有项目可用。需要显式设置 `ZHIZHUIP_TOKEN` 时，完整的 PowerShell 和 macOS/Linux 示例见[使用指南](USAGE.md#通过环境变量提供必填-api-key)。不要把真实 Key 放在命令参数、Skill 或聊天里。
 
 下面是源码方式的常用参数，在 `zhizhuip-agent-tools` 源码目录执行；GitHub 方式可将 `node dist/src/index.js` 替换为上面的完整 npx 命令（不含末尾的 `install`）：
 
@@ -66,7 +64,7 @@ node dist/src/index.js install --agents cursor --readonly
 
 API Key 保存在当前用户的 `~/.zhizhuip-agent-tools/credentials/`，客户端配置只引用凭证文件；启动器优先使用进程中的 `ZHIZHUIP_TOKEN`，没有时从该文件读取并设置此变量后启动 MCP。因此配置中没有明文 token 也仍有鉴权。各项目范围使用独立文件，全局安装共享一个 Key。不要提交或分享该目录及配置备份。POSIX 下设置私有权限，Windows 使用当前用户目录已有 ACL。更新全局 Key 会影响此前使用该全局文件的蜘蛛客户端；既有备份也可能含旧 Key。
 
-完成后重新加载所选客户端，检查 `zhizhuip` Skill 和 MCP 工具。客户端若要求信任项目、启用 Skills 或允许 MCP，按其提示处理。`--list` 的目录检测不证明软件已安装；当前验证包含各配置格式和隔离安装、真实本地 stdio 调用，尚未逐个启动上述 GUI/CLI 做加载验收。远程开发、不同 VS Code Profile、Insiders 和其他宿主中的 Cline 不属于该默认路径适配范围；Windsurf 仅适配经典 `.codeium/windsurf` 目录，不覆盖 Devin 的新配置路径。
+完成后重新加载所选客户端，检查 `zhizhuip` Skill 和 MCP 工具。客户端若要求信任项目、启用 Skills 或允许 MCP，按其提示处理。`--list` 仅检测相关目录，不能证明客户端已安装或已加载配置；请在对应客户端中确认连接状态。远程开发、不同 VS Code Profile、Insiders 和其他宿主中的 Cline 不属于该默认路径适配范围；Windsurf 仅适配经典 `.codeium/windsurf` 目录，不覆盖 Devin 的新配置路径。
 
 指定多个客户端的 GitHub 安装命令：
 
@@ -74,9 +72,9 @@ API Key 保存在当前用户的 `~/.zhizhuip-agent-tools/credentials/`，客户
 npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools install --agents claude-code,cursor,codex
 ```
 
-GitHub 命令获取远程仓库版本，本地尚未推送的修改不会包含其中。开发中的安装器请通过本地命令运行；更新与修复见 [使用指南](USAGE.md#8-本地安装与更新)。
+需要自行管理工具版本或更新已有安装时，见 [使用指南](USAGE.md#8-本地安装与更新)。
 
-只需要手工配置 MCP 的用户仍可使用下文 `setup`；它只打印片段。只想单独安装 Skill，也可用 `npx skills add . --skill zhizhuip`，但该命令不会配置 MCP，且第三方 Skills CLI 另有 Node.js 版本要求，见其[命令文档](https://github.com/vercel-labs/skills/blob/main/docs/commands.md)。统一安装器本身保持本项目 Node.js 20 基线。
+只需要手工配置 MCP 的用户仍可使用下文 `setup`；它只打印片段。只想单独安装 Skill，也可在下载后的工具源码目录执行 `npx skills add . --skill zhizhuip`，但该命令不会配置 MCP，且第三方 Skills CLI 另有 Node.js 版本要求，见其[命令文档](https://github.com/vercel-labs/skills/blob/main/docs/commands.md)。统一安装器本身保持本项目 Node.js 20 基线。
 
 安装后可以提问：
 
@@ -84,11 +82,11 @@ GitHub 命令获取远程仓库版本，本地尚未推送的修改不会包含�
 - “用我已有的美国动态住宅账号生成 20 分钟会话配置，不创建账号。”
 - “查询我的蜘蛛账号最近 7 天流量，并列出即将到期的代理。”
 
-Skill 的 [44 个工具覆盖表](skills/zhizhuip/references/tool-map.md) 关联产品、后端入口、前提和结果核对流程；[场景清单](test/evals/scenarios.md) 与 [调用样例](test/evals/tool-cases.json) 用于维护。报价或状态查询缺口、后端配置副作用均明确说明，覆盖工具不等于所有业务都能自动闭环。
+Skill 的 [44 个工具覆盖表](skills/zhizhuip/references/tool-map.md) 关联产品、使用前提和结果核对流程；[场景清单](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools/blob/main/test/evals/scenarios.md) 与 [调用样例](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools/blob/main/test/evals/tool-cases.json) 供贡献者检查工具行为。报价或状态查询缺口、后端配置副作用均明确说明，覆盖工具不等于所有业务都能自动闭环。
 
 ## 环境要求
 
-Node.js 20 或更新，安装包需提供 npm/npx。统一安装器包含 Windows、macOS、Linux 路径适配；客户端本身支持的系统以其说明为准。从 GitHub 安装还需要 Git，并能访问 GitHub 与 npm。
+Node.js 20 或更新，安装包需提供 npm/npx。统一安装器包含 Windows、macOS、Linux 路径适配；客户端本身支持的系统以其说明为准。从 GitHub 安装还需要 Git，并能访问 GitHub 与 npm；实际安装还需能访问蜘蛛 IP API 完成 Key 验证。
 
 ## 获取 token
 
@@ -96,9 +94,9 @@ token 就是网站 API Keys 页面生成的 API Key：
 
 1. 登录蜘蛛 IP 网站，点右上角头像，进 API Keys（手机端在"我的"里）。
 2. 新建一个 Key，复制以 `sk-` 开头的完整内容。
-3. 统一安装时在终端隐藏输入；手工配置时填入该服务的 `ZHIZHUIP_TOKEN`。
+3. 统一安装时在终端输入并核对显示的首尾字符，通过验证后才保存；手工配置时填入该服务的 `ZHIZHUIP_TOKEN`。
 
-Key 被删除或复制不完整时，工具会返回"API Key 无效"，到 API Keys 页面核对或重新生成后更新配置即可。Key 等同于账号权限，不要分享给他人或写进客户端代码。
+安装验证提示 Key 无效时，到 API Keys 页面核对或重新生成后，重新执行安装命令。验证失败不会保存新 Key。已安装的 Key 后续被删除时，工具调用也会提示无效；更新 Key 后重载 MCP。Key 等同于账号权限，不要分享给他人或写进客户端代码。
 
 ## 仅配置 MCP（手工方式）
 
@@ -248,7 +246,7 @@ npx @modelcontextprotocol/inspector -e ZHIZHUIP_TOKEN=YOUR_API_KEY -- node <安�
 { "country": "US", "timelen": 1, "bandwidth_num": 10 }
 ```
 
-新产品的四个写工具不需要 `product`，自动携带 `product_type_id=11`。购买一次创建一个子账号；入口国家为 US、DE、SG，带宽单位 Mbps、最低 10，时长档 1/2/3 分别为 30/90/180 天。
+动态不限流量（带宽）的四个写工具不需要 `product`，自动携带 `product_type_id=11`。购买一次创建一个子账号；入口国家为 US、DE、SG，带宽单位 Mbps、最低 10，时长档 1/2/3 分别为 30/90/180 天。
 
 续费、升级、退单的 `sub_account_id` 必须取列表的 `rows[].sub_account` 并转成字符串（例如 `"10"`），不要使用同一行的本地记录 `id`。续费前检查 `can_renew`，升级前检查 `can_upgrade`；退单申请等待平台审核，不会立即退款。
 
@@ -260,7 +258,9 @@ npx @modelcontextprotocol/inspector -e ZHIZHUIP_TOKEN=YOUR_API_KEY -- node <安�
 
 ## 跟随文档站更新
 
-接口来源为 [文档站索引](https://develop.zhizhuip.com/llms.txt)，维护流程见 [规格目录说明](spec/README.md)。`spec/pages/` 保留下载源快照，现行工具以 `spec/tools.json` 和运行时 schema 为准：
+本节供源码贡献者使用，请先克隆仓库、进入源码目录并运行 `npm ci`。npm 分发包不包含源页、生成脚本和测试。
+
+接口来源为 [文档站索引](https://develop.zhizhuip.com/llms.txt)，维护流程见 [规格目录说明](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools/blob/main/spec/README.md)。`spec/pages/` 保留下载源快照，现行工具以 `spec/tools.json` 和运行时 schema 为准：
 
 ```bash
 npm run sync-docs   # 联网更新源快照并生成工具，随后审查差异
@@ -271,6 +271,8 @@ Session 原始下载另存为 `spec/source/dynamic-proxy-session.md`，审查后
 
 ## 开发
 
+在已安装依赖的仓库源码目录执行：
+
 ```bash
 npm test               # 构建 + 全部测试（不联网，端到端测试用本地假后端）
 npm run build-spec     # 只用本地 spec/pages 重新生成 tools.json（不联网）
@@ -278,7 +280,7 @@ npm run build-spec     # 只用本地 spec/pages 重新生成 tools.json（不�
 
 涉及在后端创建数据的操作（新增子账号、下单、续费等）不做自动化联调，由维护者用测试账号手动验证。
 
-开发约定见 [AGENTS.md](AGENTS.md) 和 [CLAUDE.md](CLAUDE.md)。
+开发约定见 [AGENTS.md](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools/blob/main/AGENTS.md) 和 [CLAUDE.md](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools/blob/main/CLAUDE.md)。
 
 ## 许可
 

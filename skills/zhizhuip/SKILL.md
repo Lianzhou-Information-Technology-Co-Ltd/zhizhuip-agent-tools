@@ -13,7 +13,7 @@ description: 使用蜘蛛 IP（zhizhuip）的 MCP 工具，为客户选择代理
 
 | 用户任务 | 参考文件 |
 | --- | --- |
-| 查某个工具的适用产品、对应流程或后端入口。 | [44 个工具覆盖表](references/tool-map.md)。 |
+| 查某个工具的适用产品、对应流程或 API 入口。 | [44 个工具覆盖表](references/tool-map.md)。 |
 | 选择产品、辨认产品类型或能力范围。 | [产品选择](references/products.md)。 |
 | 查询已有代理、生成连接串或程序配置。 | [代理连接](references/proxy-connection.md)。 |
 | 查询余额、账号、用量、到期时间或修改账号设置。 | [账号与用量](references/account-usage.md)。 |

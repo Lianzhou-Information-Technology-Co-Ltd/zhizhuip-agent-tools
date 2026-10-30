@@ -162,7 +162,7 @@ paths:
                   id: 1
                   username: userxxxx
                   nickname: demo_name
-                  email: demo_name@qq.com
+                  email: "demo@example.invalid"
                   mobile: ''
                   email_verify: 1
                   mobile_verify: 0
@@ -175,7 +175,7 @@ paths:
                   extension_status: 2
                   verify_status: '1'
                   owner_verify_status: '0'
-                  ref: https://xxxx.zhizhuip.vip
+                  ref: "https://example.invalid/?ref=demo"
                   channel: '1'
                   origin_money: '3293.23'
                   give_money: '54.19'

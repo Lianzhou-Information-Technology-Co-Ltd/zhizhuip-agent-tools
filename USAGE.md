@@ -10,11 +10,11 @@
 
 ## 使用同仓 Skill
 
-推荐按[第 3 节的完整步骤](#3-一次安装-skill-与-mcp)一次安装 Skill 与 MCP：可由 npx 自动从 GitHub 下载并安装，也可先下载源码、进入目录，再安装依赖和运行安装器。支持 Claude Code、Cursor、Codex、Gemini CLI、OpenCode、Windsurf、Cline 或 VS Code Copilot。API Key 在本机隐藏输入一次，完成后重载客户端。
+推荐按[第 3 节的完整步骤](#3-一次安装-skill-与-mcp)一次安装 Skill 与 MCP：可由 npx 自动从 GitHub 下载并安装，也可先下载源码、进入目录，再安装依赖和运行安装器。支持 Claude Code、Cursor、Codex、Gemini CLI、OpenCode、Windsurf、Cline 或 VS Code Copilot。API Key 在本机输入时显示首尾、中间遮罩，通过在线验证后才安装；完成后重载客户端。
 
-安装预览、项目范围及多客户端命令见第 3 节。Skill 本身不保存 API Key，安装不调用购买等业务接口。下文手工 MCP 配置仍适用，但它与单独安装 Skill 是两个步骤。
+安装预览、项目范围及多客户端命令见第 3 节。Skill 本身不保存 API Key；安装前会查询只读用户信息接口验证 Key，不调用购买、续费或删除等写接口。下文手工 MCP 配置仍适用，但它与单独安装 Skill 是两个步骤。
 
-本地与 GitHub 仓库均为 `zhizhuip-agent-tools`；npm 包名、启动命令和 MCP 服务标识统一为 `zhizhuip-agent-tools`，客户端配置名为 `zhizhuip`。旧版手工配置若引用原目录，需要更新启动路径；使用统一安装器时由它管理固定运行目录。
+本项目的 npm 包名和启动命令为 `zhizhuip-agent-tools`，安装后在客户端中查找 `zhizhuip` Skill 和 MCP 服务。统一安装器负责管理固定运行目录。
 
 ## 1. 使用前准备
 
@@ -23,7 +23,7 @@
 1. 一个蜘蛛 IP 账号，以及在网站上创建的 API Key。
 2. 一个支持本地 **stdio MCP** 的客户端，例如 Claude Desktop、Claude Code、Cursor、Codex 或 VS Code。
 3. [Node.js](https://nodejs.org/en/download)，版本需为 **20 或更新**，安装包自带 npm 和 npx。
-4. [Git](https://git-scm.com/downloads)，用于从 GitHub 获取项目；电脑需要能够访问 GitHub 和 npm。
+4. [Git](https://git-scm.com/downloads)，用于从 GitHub 获取项目；电脑需要能够访问 GitHub 和 npm，实际安装还需访问蜘蛛 IP API 验证 Key。
 
 安装完成后，重新打开终端，检查以下命令能否显示版本号：
 
@@ -40,7 +40,7 @@ git --version
 1. 登录蜘蛛 IP 网站。
 2. 点击右上角头像，进入 **API Keys**；手机端在“我的”中进入。
 3. 新建 Key，复制以 `sk-` 开头的完整内容。
-4. 统一安装时在终端隐藏输入一次；手工配置时，将相应配置中的 `YOUR_API_KEY` 替换为这个 Key。
+4. 统一安装时在终端输入，核对显示的首尾字符，通过验证后才保存；手工配置时，将相应配置中的 `YOUR_API_KEY` 替换为这个 Key。
 
 获取入口说明见 [API Key 获取方式](https://develop.zhizhuip.com/9518263m0)。
 
@@ -50,7 +50,9 @@ API Key 代表你的账号权限。请仅保存在本机安装器的凭证文件
 
 完成前两节的环境与 API Key 准备后，以下两种方式任选一种。
 
-**实际安装必须提供 API Key。** 安装器先读取 `ZHIZHUIP_TOKEN`；未设置时会在交互终端提示“请输入蜘蛛 API Key（输入隐藏）”。下面省略环境变量的命令会走这一步，并不是无需 Key。输入为空会停止安装；非交互执行必须预先设置 `ZHIZHUIP_TOKEN`，并通过 `--agents` 指定客户端。
+**实际安装必须通过 API Key 验证。** 安装器先读取 `ZHIZHUIP_TOKEN`；未设置时在交互终端输入，显示首尾各 4 位，中间用星号遮住，输入不超过 8 位时完整显示。按回车前可用退格修改，或按 `Ctrl+C` 取消。输入为空会停止安装；非交互执行必须预先设置 `ZHIZHUIP_TOKEN`，并通过 `--agents` 指定客户端。
+
+安装器会先查询只读用户信息接口验证 Key。无效 Key、网络错误、超时或异常响应都会提示并停止；此时不会写入运行文件、Skill、凭证或客户端配置，已有安装保持不变。修正 Key 或网络问题后，重新执行同一条安装命令。验证只确认当前接口鉴权成功，不保证 Key 此后永久有效或代理转发已经可用。
 
 ### 方式一：从 GitHub 自动下载并安装
 
@@ -73,7 +75,7 @@ node dist/src/index.js install
 
 `git clone` 从 GitHub 下载项目，`cd` 进入下载后的源码目录。`npm ci` 必须在包含 `package.json` 和 `package-lock.json` 的目录执行，它会安装依赖并自动构建出 `dist/`；最后一条命令启动安装器。
 
-如果已克隆项目，或通过 GitHub 的 **Code → Download ZIP** 下载并解压，直接进入上述源码目录，从 `npm ci` 开始。修改尚未推送时，使用这份本地源码安装。
+如果已克隆项目，或通过 GitHub 的 **Code → Download ZIP** 下载并解压，直接进入上述源码目录，从 `npm ci` 开始。
 
 ### 通过环境变量提供必填 API Key
 
@@ -94,11 +96,11 @@ ZHIZHUIP_TOKEN="YOUR_API_KEY" npx -y github:Lianzhou-Information-Technology-Co-L
 
 源码方式使用同一个环境变量，把示例中的 npx 调用换成 `node dist/src/index.js install --agents claude-code,cursor,codex`，并在已构建的工具源码目录执行。自动化环境可通过其密钥配置注入 `ZHIZHUIP_TOKEN`，不要把真实 Key 提交到脚本仓库。
 
-`--help`、`--list` 和 `--dry-run` 只显示说明或预览，不读取 Key，也不执行安装，因此无需提供 Key。安装时仅检查 Key 非空，不联网验证有效性；连接后由后端校验。
+`--help`、`--list` 和 `--dry-run` 只显示说明或预览，不读取 Key、不发送验证请求，也不执行安装，因此无需提供 Key。实际安装和重新安装都会在线验证，通过后才保存。
 
 ### 安装选项与完成检查
 
-未通过 `--agents` 指定客户端时，交互终端会提示多选；未设置 `ZHIZHUIP_TOKEN` 时再隐藏输入一次 API Key。默认 `global`，适用于当前用户的各项目。下面以 GitHub 方式示例；源码方式在工具源码目录用 `node dist/src/index.js install` 加相同参数。
+未通过 `--agents` 指定客户端时，交互终端会提示多选；未设置 `ZHIZHUIP_TOKEN` 时再输入 API Key 并核对显示的首尾字符。默认 `global`，适用于当前用户的各项目。下面以 GitHub 方式示例；源码方式在工具源码目录用 `node dist/src/index.js install` 加相同参数。
 
 ```bash
 # 一次安装多个客户端。
@@ -112,11 +114,11 @@ npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools instal
 
 `--scope project` 作用于运行命令时的当前目录。确认预览后去掉 `--dry-run` 执行安装。使用本地源码为业务项目安装时，也先进入该业务项目，再用 `node "<工具源码目录的绝对路径>/dist/src/index.js" install --scope project`；不要把工具源码目录误当作要接入的业务项目。
 
-首批 Agent ID 为 `claude-code`、`cursor`、`codex`、`gemini-cli`、`opencode`、`windsurf`、`cline`、`vscode`。Windsurf 和 Cline 仅支持全局范围；`cline` 指默认 VS Code 用户配置中的扩展，`vscode` 指 VS Code Copilot。经典 Windsurf、远程开发和多 Profile 的范围限制见 [安装说明](README.md#一次安装-skill-与-mcp)。
+支持的 Agent ID 为 `claude-code`、`cursor`、`codex`、`gemini-cli`、`opencode`、`windsurf`、`cline`、`vscode`。Windsurf 和 Cline 仅支持全局范围；`cline` 指默认 VS Code 用户配置中的扩展，`vscode` 指 VS Code Copilot。经典 Windsurf、远程开发和多 Profile 的范围限制见 [安装说明](README.md#一次安装-skill-与-mcp)。
 
 安装器将同包 Skill 与 MCP 运行文件一起安装，保留其他服务配置并备份改动；部分客户端失败会单独报告，可按相同范围重跑修复。全局 API Key 保存在 `~/.zhizhuip-agent-tools/credentials/global.json`，项目安装使用按项目区分的凭证文件；客户端配置不嵌入 Key。启动器优先使用进程环境中的 `ZHIZHUIP_TOKEN`，缺失时从凭证文件读取并设置该变量，再启动 MCP；所以配置 JSON 中没有 `ZHIZHUIP_TOKEN` 不代表可以无 Key 运行。安装器在当前用户目录保存 Node.js 绝对路径和固定运行目录，因此移动 Node.js 或换机器后需要重新安装。
 
-安装成功后重载客户端，并按它的提示启用 Skill、信任项目和允许 MCP。配置写入不代表客户端已经加载，更不代表真实代理已连通。GitHub 命令只获取远程仓库内容；使用尚未推送的本地代码时，按上面的“方式二”操作。
+安装成功后重载客户端，并按它的提示启用 Skill、信任项目和允许 MCP。配置写入不代表客户端已经加载，更不代表真实代理已连通；按第 5 节执行一次查询来确认连接。
 
 ## 4. 手工配置 MCP（可选）
 
@@ -429,7 +431,8 @@ npx 可能复用缓存；需要精确控制版本时，先取得目标版本的�
 | 问题 | 处理方法 |
 | --- | --- |
 | 提示缺少 `ZHIZHUIP_TOKEN` 或无法读取凭证文件 | 统一安装时按原范围重跑并输入有效 Key；手工接入检查该服务的 `env`。不要只在另一个终端设置变量，也不要把完整 Key 发到对话中。 |
-| 提示 API Key 无效或已删除 | 确认复制了完整 Key、没有多余空格，并检查网站上的 Key 是否仍有效；必要时重新创建并更新配置。 |
+| 提示 API Key 无效或已删除 | 确认复制了完整 Key，并检查网站上的 Key 是否仍有效；修正后重新运行安装。安装验证失败不会保存新 Key 或覆盖已有配置；更新成功后重载 MCP。 |
+| 安装时验证超时、网络失败或响应异常 | 检查网络及服务可用性后重新安装；验证未通过时不会写入安装文件，也不会覆盖已有凭证。 |
 | 提示找不到 `node`、`npx` 或 `git` | 安装 Node.js 和 Git 后重启客户端；在终端检查版本号。Windows 的 npx 问题可使用上文 `cmd /c npx` 配置。 |
 | 首次启动很久没有连接成功 | 首次需要下载和构建，检查 GitHub、npm 网络以及客户端日志。若启动超时，可先执行本文的 `setup --npx` 命令完成下载，再重新加载服务，或改用本地安装。 |
 | 助手只给建议，没有调用工具 | 确认 `zhizhuip` 已连接、工具已启用，并在支持工具的对话模式中明确要求“使用蜘蛛 IP 工具”。 |

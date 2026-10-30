@@ -5,14 +5,17 @@ import { dirname, isAbsolute, join, parse as parsePath, relative, resolve, sep }
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
+import { clearLine, cursorTo } from 'node:readline';
 import { applyEdits, modify, parse, type ParseError } from 'jsonc-parser';
 import * as TOML from '@iarna/toml';
+import { cfgFromEnv } from './http.js';
 
 export type InstallScope = 'project' | 'global';
 export interface InstallOptions { agents: string[]; scope: InstallScope; list: boolean; dryRun: boolean; help: boolean; readonly: boolean }
 export interface InstallContext {
   home: string; cwd: string; packageRoot: string; platform: NodeJS.Platform; env: NodeJS.ProcessEnv; nodePath: string;
   interactive: boolean; output: (message: string) => void; ask: (message: string) => Promise<string>; secret: () => Promise<string>;
+  fetch: typeof fetch;
   /** 仅供隔离测试模拟写入失败，不接收凭证内容。 */
   beforeWrite?: (path: string) => void;
 }
@@ -35,8 +38,9 @@ export const INSTALL_HELP = `用法：zhizhuip-agent-tools install [选项]
   --list              列出已适配客户端、支持范围及检测结果
   --dry-run           仅检查并展示计划，不写文件、不读取或索要 Key
   --help, -h          显示帮助
-实际安装必须提供 API Key：优先读取 ZHIZHUIP_TOKEN，未设置时在交互终端隐藏输入。
+实际安装必须提供 API Key：优先读取 ZHIZHUIP_TOKEN，未设置时在终端输入，显示首尾各 4 位，中间遮罩。
 非交互执行必须设置 ZHIZHUIP_TOKEN 并指定 --agents；--help、--list、--dry-run 不需要 Key。
+安装前请求用户信息接口验证 Key；验证失败或无法连接时停止，不修改已有配置和凭证。
 固定运行目录和凭证文件位于 ~/.zhizhuip-agent-tools/。
 project 配置只对当前目录生效；Cline 和 Windsurf 仅支持 global。
 安装后需重新加载客户端；安装成功不代表真实代理已通过联网测试。
@@ -426,17 +430,28 @@ export function installFromPlan(plan: InstallPlan, token: string, c: InstallCont
   return results;
 }
 
-/** 从终端隐藏读取 API Key，取消时恢复终端状态。
+/** 保留输入首尾各四位，遮住中间内容供终端核对。
  *
- * @return {Promise<string>} 用户输入的 Key；非交互终端会拒绝读取。
+ * @param value 当前输入内容；不超过八位时全部显示。
+ * @return string，首尾可见、中间最多八个星号的显示文本，避免长 Key 撑满终端。
  */
-async function hiddenToken(): Promise<string> {
+export function formatTokenInput(value: string): string {
+  return value.length <= 8 ? value : value.slice(0, 4) + '*'.repeat(Math.min(value.length - 8, 8)) + value.slice(-4);
+}
+
+/** 从终端读取 API Key，输入时显示首尾，取消时恢复终端状态。
+ *
+ * @return {Promise<string>} 去除首尾空白的 Key；非交互终端会拒绝读取。
+ */
+async function readToken(): Promise<string> {
   if (!process.stdin.isTTY || !process.stdin.setRawMode) throw new Error('非交互模式请先设置 ZHIZHUIP_TOKEN。');
-  process.stdout.write('请输入蜘蛛 API Key（输入隐藏）：');
+  const prompt = 'API Key（首尾可见）：';
+  process.stdout.write(prompt);
   const input = process.stdin; const previous = input.isRaw; input.setRawMode(true); input.resume(); input.setEncoding('utf8');
   return new Promise((done, reject) => {
     let value = '';
-    const finish = (cancelled: boolean): void => { input.off('data', handler); input.setRawMode(previous); input.pause(); process.stdout.write('\n'); cancelled ? reject(new Error('已取消安装。')) : done(value.trim()); };
+    const redraw = (): void => { cursorTo(process.stdout, 0); clearLine(process.stdout, 0); process.stdout.write(prompt + formatTokenInput(value)); };
+    const finish = (cancelled: boolean): void => { input.off('data', handler); input.setRawMode(previous); input.pause(); redraw(); process.stdout.write('\n'); cancelled ? reject(new Error('已取消安装。')) : done(value.trim()); };
     const handler = (chunk: string): void => {
       for (const ch of chunk) {
         if (ch === '\u0003' || ch === '\u0004') { finish(true); return; }
@@ -444,9 +459,52 @@ async function hiddenToken(): Promise<string> {
         if (ch === '\u007f' || ch === '\b') value = value.slice(0, -1);
         else if (ch >= ' ' && ch !== '\u001b') value += ch;
       }
+      redraw();
     };
     input.on('data', handler);
   });
+}
+
+/** 通过用户信息接口验证 Key，仅确认身份，不输出响应中的账户数据。
+ *
+ * @param token 本次安装准备使用的完整 API Key。
+ * @param c 安装环境，提供接口配置与请求实现。
+ * @return {Promise<void>} 验证成功后返回，不写入安装文件。
+ * @throws Error，认证、网络、服务状态或响应结构异常时阻止安装。
+ */
+async function validateToken(token: string, c: InstallContext): Promise<void> {
+  const cfg = cfgFromEnv({ ...c.env, ZHIZHUIP_TOKEN: token });
+  const url = new URL(cfg.baseUrl + '/externalapi/user/getGetUserInfo');
+  url.searchParams.set('is_mcp_send', '1');
+  let response: Response;
+  let body: Record<string, unknown> | undefined;
+  try {
+    response = await c.fetch(url, {
+      method: 'GET', redirect: 'error', signal: AbortSignal.timeout(cfg.timeoutMs),
+      headers: { token, accept: 'application/json', 'accept-language': 'zh-CN', 'user-agent': 'zhizhuip mcp' },
+    });
+    const raw = await response.text();
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) body = parsed as Record<string, unknown>;
+    } catch { /* 非 JSON 响应在下面统一拒绝，不输出原文。 */ }
+  } catch (error) {
+    throw new Error(error instanceof Error && error.name === 'TimeoutError'
+      ? 'API Key 验证失败：请求超时，未执行安装。请检查网络后重新运行。'
+      : 'API Key 验证失败：无法连接验证接口，未执行安装。请检查网络和接口地址后重新运行。');
+  }
+  if ([401, 403].includes(response.status) || [401, 403, '401', '403'].includes(body?.code as number | string)) {
+    throw new Error('API Key 验证失败：Key 无效或无权限，未执行安装。请核对 Key 后重新运行。');
+  }
+  if (!response.ok) throw new Error(`API Key 验证失败：服务返回 HTTP ${response.status}，未执行安装。请稍后重试。`);
+  if (!body || (body.code !== 1 && body.code !== '1')) {
+    throw new Error('API Key 验证失败：用户信息接口未返回成功结果，未执行安装。请核对 Key 或稍后重试。');
+  }
+  const data = body.data;
+  const id = data !== null && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>).id : undefined;
+  if ((typeof id !== 'number' && typeof id !== 'string') || !/^[1-9]\d*$/.test(String(id))) {
+    throw new Error('API Key 验证失败：用户信息响应不完整，未执行安装。请稍后重试。');
+  }
 }
 
 /** 运行安装子命令；仅在用户选择完成后写入目标目录。
@@ -459,7 +517,7 @@ export async function runInstall(argv: string[], context: Partial<InstallContext
   const c: InstallContext = {
     home: homedir(), cwd: process.cwd(), packageRoot: fileURLToPath(new URL('../../', import.meta.url)), platform: process.platform,
     env: process.env, nodePath: process.execPath, interactive: !!process.stdin.isTTY && !!process.stdout.isTTY,
-    output: message => console.log(message), secret: hiddenToken,
+    output: message => console.log(message), secret: readToken, fetch,
     ask: async message => { const rl = createInterface({ input: process.stdin, output: process.stdout }); try { return await rl.question(message); } finally { rl.close(); } },
     ...context,
   };
@@ -491,19 +549,22 @@ export async function runInstall(argv: string[], context: Partial<InstallContext
       }
       c.output('仅预览，未写文件或读取 Key。'); return valid ? 0 : 1;
     }
-    const token = c.env.ZHIZHUIP_TOKEN?.trim() || (c.interactive ? await c.secret() : '');
-    if (!token) throw new Error('缺少 API Key；交互终端可隐藏输入，非交互模式请设置 ZHIZHUIP_TOKEN。');
+    const token = (c.env.ZHIZHUIP_TOKEN?.trim() || (c.interactive ? await c.secret() : '')).trim();
+    if (!token) throw new Error('缺少 API Key；请在终端输入，非交互模式请设置 ZHIZHUIP_TOKEN。');
+    c.output('正在验证 API Key…');
+    await validateToken(token, c);
+    c.output('API Key 验证通过，开始安装。');
     const results = installFromPlan(plan, token, c);
     for (const result of results) {
       c.output(`${result.agent}：${result.success ? 'Skill 和 MCP 配置已安装' : result.error}`);
       for (const backup of result.backups) c.output(`  备份：${backup}`);
     }
-    c.output('请重新加载所选客户端并检查 Skill 与 MCP 工具；本次未调用真实业务接口。');
+    c.output('请重新加载所选客户端并检查 Skill 与 MCP 工具；本次仅查询用户信息验证 Key，未调用购买或账号修改接口。');
     return results.every(r => r.success) ? 0 : 1;
   } catch (e) {
     // 不转述来自文件内容或底层解析器的异常，避免错误文本携带凭证。
     const message = e instanceof Error ? e.message : '';
-    const safe = /^(存在不支持|存在未适配|--scope|--agents|--scope|缺少 API Key|非交互模式|已取消安装|请通过 --agents|未选择客户端|固定运行目录|当前包没有|缺少生产依赖)/.test(message) || message.includes('暂不支持');
+    const safe = /^(存在不支持|存在未适配|--scope|--agents|--scope|缺少 API Key|API Key 验证失败|非交互模式|已取消安装|请通过 --agents|未选择客户端|固定运行目录|当前包没有|缺少生产依赖)/.test(message) || message.includes('暂不支持');
     c.output(safe ? message : '安装失败，请检查目录权限、包内容与现有配置；未输出敏感内容。'); return 1;
   }
 }

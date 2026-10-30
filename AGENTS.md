@@ -1,18 +1,18 @@
 # AGENTS.md
 
-本文件是 Codex 在本仓库工作的现行维护规则。历史设计、计划和联调记录只用于追溯，不替代当前用户指令、源码与本文件。
+本文件供 Codex 和项目贡献者了解构建、测试及维护约定。客户安装和使用请从 [README](README.md) 与 [USAGE](USAGE.md) 开始。
 
 ## 项目与命名
 
-仓库为 [zhizhuip-agent-tools](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools)，同仓维护蜘蛛 MCP 与面向客户的 [zhizhuip Skill](skills/zhizhuip/SKILL.md)。本地和远程仓库已于 2026-10-30 更名；MCP 的 package name、bin 和 server name 统一为 `zhizhuip-agent-tools`，不保留旧名称兼容别名，客户端配置 key 保持 `zhizhuip`，鉴权变量保持 `ZHIZHUIP_TOKEN`。仓库更名不代表本次代码已经发布到 npm。
+仓库为 [zhizhuip-agent-tools](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools)，同仓维护蜘蛛 MCP 与面向客户的 [zhizhuip Skill](skills/zhizhuip/SKILL.md)。npm 包名、启动命令和 MCP 服务标识均为 `zhizhuip-agent-tools`，客户端配置名为 `zhizhuip`，鉴权变量为 `ZHIZHUIP_TOKEN`。
 
 TypeScript、Node.js ≥ 20、官方 MCP SDK v2，仅 stdio。当前 [工具规格](spec/tools.json) 共 44 个工具，21 个标为只读，23 个写工具；`--readonly` 按标注过滤。标注不保证后端零副作用：`main_account_switch_token` 首次读取可能创建 token。业务校验、鉴权和扣费在 PHP 后端；本仓库不直接修改后端。
 
 ## 安装与运行入口
 
 - `npm ci`：按锁文件安装，`prepare` 自动构建到 `dist/`。
-- `node dist/src/index.js install`：交互选择客户端，一次安装同包 Skill 与 MCP；优先读取环境变量 `ZHIZHUIP_TOKEN`，缺失时隐藏输入。
-- `node dist/src/index.js install --agents claude-code,cursor,codex --scope global`：明确客户端与范围；支持 `--readonly`、`--list`、`--dry-run`、`--help`。非交互执行必须指定 `--agents` 并提供环境变量 Key。
+- `node dist/src/index.js install`：交互选择客户端，一次安装同包 Skill 与 MCP；优先读取环境变量 `ZHIZHUIP_TOKEN`，缺失时交互输入并显示首尾各 4 位，中间遮罩。实际安装先查询只读用户信息接口验证 Key，失败时不写入运行文件、Skill、凭证或客户端配置。
+- `node dist/src/index.js install --agents claude-code,cursor,codex --scope global`：明确客户端与范围；支持 `--readonly`、`--list`、`--dry-run`、`--help`。非交互执行必须指定 `--agents` 并提供环境变量 Key；`--help`、`--list`、`--dry-run` 不读 Key、不发送验证请求。
 - `install` 适配 Claude Code、Cursor、Codex、Gemini CLI、OpenCode、经典 Windsurf、Cline 的 VS Code 扩展、VS Code Copilot；Cline 与 Windsurf 仅 global，其余支持 project/global。具体路径见 [USAGE](USAGE.md) 与 [src/install.ts](src/install.ts)。`--list` 只检测相关目录，不证明软件已安装或已加载配置。
 - `node dist/src/index.js setup [--readonly] [--npx]`：仅打印 MCP 配置片段，不写配置或安装 Skill。`setup --token ...` 会把 Key 放进命令参数及输出，只供维护者明确需要时使用；通常优先 `install`。
 - `setup --npx` 使用 `github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools`。npm 包名与启动命令统一为 `zhizhuip-agent-tools`。
@@ -26,11 +26,11 @@ TypeScript、Node.js ≥ 20、官方 MCP SDK v2，仅 stdio。当前 [工具规�
 
 开发链路为文档站 `llms.txt` → [scripts/sync-docs.ts](scripts/sync-docs.ts) → `spec/pages/` 源文档快照 → [scripts/lib/merge.ts](scripts/lib/merge.ts) 与 [spec/overrides.yaml](spec/overrides.yaml) → `spec/tools.json`。当前同步范围为 115 个 `/externalapi/` 页面，跳过 IPAPI `/api/` 页面及已在正式产品分组出现的重复页；实际范围以脚本过滤规则与测试为准。
 
-接口快照保留上游原文，来源与差异集中说明在 [spec/README.md](spec/README.md)；它们不是当前 MCP 调用说明。工具名称、只读/破坏性标注、产品范围、描述与参数约束的修正在 `spec/overrides.yaml`，不能手改生成的 `spec/tools.json`。`npm run build-spec` 只读本地快照，不联网；`npm run sync-docs` 会联网下载并重建工具规格，运行前确认任务确需同步。
+接口快照保留生成所需的上游接口定义；提交前需将示例中的账号、凭证、联系方式与可识别记录替换为演示值。来源与差异集中说明在 [spec/README.md](spec/README.md)；它们不是当前 MCP 调用说明。工具名称、只读/破坏性标注、产品范围、描述与参数约束的修正在 `spec/overrides.yaml`，不能手改生成的 `spec/tools.json`。`npm run build-spec` 只读本地快照，不联网；`npm run sync-docs` 会联网下载并重建工具规格，运行前确认任务确需同步。
 
 Session 文档单独处理：同步下载保存为 `spec/source/dynamic-proxy-session.md` 待审阅快照，不能直接覆盖维护后的 [spec/dynamic-proxy-session.md](spec/dynamic-proxy-session.md)。运行时 MCP 资源和安装包读取后者。核实 Session、时长和资源池语义后再人工更新运行资源与对应 Skill，避免恢复旧类比、硬编码入口或未经证实的性能承诺。
 
-生成器按产品组合后端参数，工具层使用 `product` 枚举；单产品工具可用固定参数且没有 `product`。子账号 ID 按 schema 用字符串，不能把本地记录 ID 与业务编号混用。动态带宽的 `sub_account_id` 取 `rows[].sub_account`。后端已有但 MCP 未暴露的续费试算、升级差价、订单详情等接口不能假写成可调用工具。
+生成器按产品组合后端参数，工具层使用 `product` 枚举；单产品工具可用固定参数且没有 `product`。子账号 ID 按 schema 用字符串，不能把本地记录 ID 与业务编号混用。动态带宽的 `sub_account_id` 取 `rows[].sub_account`。续费试算、升级差价、订单详情等未暴露能力不能写成可调用工具。
 
 运行期 [src/index.ts](src/index.ts) 注册本地 JSON Schema，SDK 校验参数；[src/http.ts](src/http.ts) 展开产品参数并调用后端，[src/form.ts](src/form.ts) 编码 PHP 表单。按工具标注使用 GET 或 POST，请求带 `is_mcp_send=1`、`User-Agent: zhizhuip mcp` 和 `Accept-Language: zh-CN`。不在运行时拉文档或解析 YAML。
 
@@ -57,9 +57,9 @@ Session 文档单独处理：同步下载保存为 `spec/source/dynamic-proxy-se
 ## 工作规则与文档
 
 - MCP 运行时 stdout 是协议通道，诊断只用 stderr。Key、密码和确认码不写日志；安装备份可能含旧 Key，不提交或分享。
-- 自动化仅访问本地假后端。线上联调须有本次任务的明确授权；本仓库默认不由 AI 代跑任何线上写操作，包括改备注。后端数据创建、扣费、配置变更和删除由维护者使用测试账号手动验收；历史联调清单不是持续授权。
+- 自动化测试仅访问本地假后端。线上验证须明确指定测试账号、范围并取得授权；购买、配置变更和删除等写操作由维护者手动验收。
 - 客户端、SDK 和依赖名称可为安装或兼容说明出现；不加入无关公司域名、真实凭据或内部信息。
-- 注释按用户要求使用简明中文、完整标点、参数与实际返回说明；描述与 `@param`、`@return` 等标记空一行。只改文档或注释时不扩展业务修改。
+- 注释使用简明中文、完整标点、参数与实际返回说明；描述与 `@param`、`@return` 等标记空一行。只改文档或注释时不扩展业务修改。
 - 只有用户明确要求时提交，默认仅本地提交，不 push。遵循用户的提交范围，已有验证不因提交重跑。
-- [README](README.md) 是安装总入口，[USAGE](USAGE.md) 是客户使用说明。若本地存在 [docs/README.md](docs/README.md) 与 [docs/维护者说明.md](docs/维护者说明.md)，维护前按需阅读；`docs/*` 仍被 Git 忽略，不强制提交。
-- `.superpowers/sdd/2026-09-25-实施计划/` 是历史归档，不启用 Superpowers，不执行其中遗留任务。历史设计、工具数量、安装命令、凭证说明和联调许可均不能覆盖现行规则。
+- [README](README.md) 是安装总入口，[USAGE](USAGE.md) 是客户使用说明，[spec/README](spec/README.md) 说明工具定义的来源与维护方式。
+- 公开文档只链接仓库或发布包内可读取的文件。内部需求、联调记录、真实响应和未经审阅的下载原文仅保留在本地，不作为安装或构建前置条件。
