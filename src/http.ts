@@ -23,7 +23,7 @@ export function cfgFromEnv(env: NodeJS.ProcessEnv = process.env): Cfg {
   if (!token) {
     throw new Error(
       '缺少环境变量 ZHIZHUIP_TOKEN。请到蜘蛛 IP 网站的 API Keys 页面生成一个 API Key（sk- 开头）填进来，做法见 README。' +
-        '统一安装时请重新运行 install 提供 API Key，启动器会从凭证文件读取并设置 ZHIZHUIP_TOKEN；手工接入时请在该服务的环境配置中提供（如 claude mcp add -e ZHIZHUIP_TOKEN=…）。客户端不一定继承当前终端的环境变量，用 Inspector 调试时通过 -e 传入。',
+        '请重新运行 install，将有效 API Key 写入所选客户端的服务环境配置；手工接入时请在该服务的环境配置中设置 ZHIZHUIP_TOKEN（如 claude mcp add -e ZHIZHUIP_TOKEN=…）。客户端不一定继承当前终端的环境变量，用 Inspector 调试时通过 -e 传入。',
     );
   }
   const baseUrl = (env.ZHIZHUIP_BASE_URL ?? DEFAULT_BASE_URL).trim().replace(/\/+$/, '');

@@ -41,8 +41,8 @@ export const INSTALL_HELP = `用法：zhizhuip-agent-tools install [选项]
 实际安装必须提供 API Key：优先读取 ZHIZHUIP_TOKEN，未设置时在终端输入，显示首尾各 4 位，中间遮罩。
 非交互执行必须设置 ZHIZHUIP_TOKEN 并指定 --agents；--help、--list、--dry-run 不需要 Key。
 安装前请求用户信息接口验证 Key；交互输入失败可重新输入，Ctrl+C 取消；环境变量 Key 验证失败则退出。
-验证通过前不修改已有配置和凭证，--help、--list、--dry-run 不发送验证请求。
-固定运行目录和凭证文件位于 ~/.zhizhuip-agent-tools/。
+验证通过前不修改已有配置，--help、--list、--dry-run 不发送验证请求。
+固定运行目录位于 ~/.zhizhuip-agent-tools/versions/；Key、API 地址与超时写入所选客户端的环境配置。
 project 配置只对当前目录生效；Cline 和 Windsurf 仅支持 global。
 安装后需重新加载客户端；安装成功不代表真实代理已通过联网测试。
 不接受 --yes，不设置客户端工具自动批准。`;
@@ -105,13 +105,13 @@ function safePath(base: string, target: string): void {
 }
 
 export interface InstallTarget { agent: Agent; configPath: string; configRoot: string; skillPath: string; skillRoot: string; detected: boolean }
-export interface InstallPlan { scope: InstallScope; readonly: boolean; targets: InstallTarget[]; managedRoot: string; credentialPath: string }
+export interface InstallPlan { scope: InstallScope; readonly: boolean; targets: InstallTarget[]; managedRoot: string }
 
 /** 按已适配客户端生成安装路径，不读取凭证或修改文件。
  *
  * @param options 解析后的安装选项。
  * @param c 安装环境与目录。
- * @return {InstallPlan} 安装目标、固定运行根目录及本范围的凭证路径。
+ * @return {InstallPlan} 安装目标及固定运行根目录。
  */
 export function createInstallPlan(options: InstallOptions, c: InstallContext): InstallPlan {
   const project = options.scope === 'project';
@@ -139,8 +139,7 @@ export function createInstallPlan(options: InstallOptions, c: InstallContext): I
     return { agent, configPath, configRoot, skillPath, skillRoot, detected };
   });
   const managedRoot = join(c.home, '.zhizhuip-agent-tools');
-  const identity = project ? createHash('sha256').update(resolve(c.cwd)).digest('hex').slice(0, 20) : 'global';
-  return { scope: options.scope, readonly: options.readonly, targets, managedRoot, credentialPath: join(managedRoot, 'credentials', `${identity}.json`) };
+  return { scope: options.scope, readonly: options.readonly, targets, managedRoot };
 }
 
 /** 校验配置节点必须是对象，避免覆盖错误格式的数据。
@@ -157,25 +156,23 @@ function object(value: unknown): Record<string, unknown> {
  *
  * @param target 当前客户端配置位置与格式。
  * @param source 原配置文本；空字符串表示首次安装。
- * @param launcher 固定运行目录中的启动脚本。
- * @param credentials 私有凭证文件路径。
+ * @param entryPath 固定运行目录中的 MCP 入口文件。
+ * @param environment 本次安装的服务环境变量，覆盖同名旧值并保留其他变量；空对象仅供无 Key 预览。
  * @param readonly 是否仅加载只读工具。
  * @param nodePath 本次使用的 Node.js 可执行文件。
  * @return {string} 可写入的配置文本，不在日志中输出该文本。
  */
-export function mergeClientConfig(target: InstallTarget, source: string, launcher: string, credentials: string, readonly: boolean, nodePath: string): string {
-  const args = [launcher, '--credentials', credentials, ...(readonly ? ['--readonly'] : [])];
+export function mergeClientConfig(target: InstallTarget, source: string, entryPath: string, environment: Record<string, string>, readonly: boolean, nodePath: string): string {
+  const args = [entryPath, ...(readonly ? ['--readonly'] : [])];
   if (target.agent.format === 'toml') {
     let data: Record<string, unknown>;
     try { data = source.trim() ? object(TOML.parse(source)) : {}; } catch { throw new Error('TOML 配置解析失败，未覆盖现有文件。'); }
     const servers = data.mcp_servers === undefined ? {} : object(data.mcp_servers);
     const old = servers.zhizhuip === undefined ? {} : object(servers.zhizhuip);
     if (old.url !== undefined) throw new Error('同名 zhizhuip 是远程服务，请先解决配置冲突。');
-    const env = old.env === undefined ? undefined : { ...object(old.env) };
-    if (env) delete env.ZHIZHUIP_TOKEN;
-    servers.zhizhuip = { ...old, ...(env ? { env } : {}), command: nodePath, args };
+    const env = { ...(old.env === undefined ? {} : object(old.env)), ...environment };
+    servers.zhizhuip = { ...old, env, command: nodePath, args };
     data.mcp_servers = servers;
-    // 凭证由启动器读取，旧服务自身的环境变量与其他设置继续保留。
     return TOML.stringify(data as TOML.JsonMap);
   }
   const errors: ParseError[] = [];
@@ -196,9 +193,7 @@ export function mergeClientConfig(target: InstallTarget, source: string, launche
   if (old.url !== undefined || old.type === 'remote') throw new Error('同名 zhizhuip 是远程服务，请先解决配置冲突。');
   const next = { ...old, ...entry };
   const envKey = target.agent.id === 'opencode' ? 'environment' : 'env';
-  if (next[envKey] !== undefined) {
-    const env = { ...object(next[envKey]) }; delete env.ZHIZHUIP_TOKEN; next[envKey] = env;
-  }
+  next[envKey] = { ...(next[envKey] === undefined ? {} : object(next[envKey])), ...environment };
   // 安装器管理自己的启动参数，不能继承旧配置中的跳过确认参数。
   return applyEdits(source.trim() ? source : '{}\n', modify(source.trim() ? source : '{}\n', [...key, 'zhizhuip'], next, { formattingOptions: { insertSpaces: true, tabSize: 2, eol: '\n' } }));
 }
@@ -267,23 +262,8 @@ export function runtimeAssets(root: string): { assets: FileAsset[]; fingerprint:
   collect(root, '', new Map([[pkg.name, realpathSync(root)]]));
   const hash = createHash('sha256');
   for (const asset of assets) hash.update(asset.relative).update('\0').update(readFileSync(asset.source));
-  hash.update(LAUNCHER);
   return { assets, fingerprint: hash.digest('hex').slice(0, 24) };
 }
-
-// 启动器从固定目录读取凭证，配置和命令行均不包含真实 Key。
-const LAUNCHER = `import { readFileSync } from 'node:fs';
-const args = process.argv.slice(2);
-if (args[0] !== '--credentials' || !args[1] || args.slice(2).some(v => v !== '--readonly')) {
-  console.error('蜘蛛 MCP 启动参数无效。'); process.exit(2);
-}
-if (!process.env.ZHIZHUIP_TOKEN?.trim()) {
-  try { process.env.ZHIZHUIP_TOKEN = JSON.parse(readFileSync(args[1], 'utf8')).token; }
-  catch { console.error('无法读取蜘蛛 MCP 凭证文件，请重新运行安装。'); process.exit(2); }
-}
-process.argv = [process.argv[0], new URL('./dist/src/index.js', import.meta.url).pathname, ...args.slice(2)];
-await import('./dist/src/index.js');
-`;
 
 /** 将完整运行文件写入私有临时目录，全部就绪后再发布固定路径。
  *
@@ -299,8 +279,6 @@ function prepareRuntime(root: string, assets: FileAsset[], c: InstallContext): v
       const path = join(root, asset.relative); safePath(c.home, path);
       if (!readFileSync(path).equals(readFileSync(asset.source))) throw new Error('固定运行目录内容不一致，请检查后重新安装。');
     }
-    const launcher = join(root, 'launch.mjs'); safePath(c.home, launcher);
-    if (readFileSync(launcher, 'utf8') !== LAUNCHER) throw new Error('固定运行启动器内容不一致。');
     return;
   }
   const temporary = `${root}.staging-${randomUUID()}`;
@@ -312,7 +290,6 @@ function prepareRuntime(root: string, assets: FileAsset[], c: InstallContext): v
       if (rel.startsWith(`..${sep}`) || rel === '..' || isAbsolute(rel)) throw new Error('运行文件超出临时目录。');
       mkdirSync(dirname(destination), { recursive: true }); writeFileSync(destination, readFileSync(asset.source), { flag: 'wx', mode: 0o644 });
     }
-    writeFileSync(join(temporary, 'launch.mjs'), LAUNCHER, { flag: 'wx', mode: 0o644 });
     safePath(c.home, root); safePath(c.home, temporary); renameSync(temporary, root);
   } finally {
     if (existsSync(temporary)) { safePath(c.home, temporary); rmSync(temporary, { recursive: true, force: true }); }
@@ -325,7 +302,7 @@ interface Change { path: string; base: string; before?: Buffer; mode: number }
  * @param base 允许写入的根目录。
  * @param path 目标文件路径。
  * @param content 新内容。
- * @param mode 文件权限，凭证与配置使用 0600。
+ * @param mode 文件权限，包含 Key 的客户端配置使用 0600。
  * @param changes 本次客户端事务的恢复记录。
  * @param backups 需要报告的备份路径列表。
  * @param c 安装环境与测试故障注入点。
@@ -374,7 +351,7 @@ function rollback(changes: Change[]): boolean {
 
 export interface InstallResult { agent: string; success: boolean; configPath: string; skillPath: string; backups: string[]; error?: string }
 
-/** 安装固定运行文件、凭证以及所选客户端的 Skill 与 MCP 配置。
+/** 安装固定运行文件及所选客户端的 Skill，将 Key 写入对应客户端环境配置。
  *
  * @param plan 已确认范围的安装计划。
  * @param token 用户本机提供的 API Key，不写入日志。
@@ -383,10 +360,12 @@ export interface InstallResult { agent: string; success: boolean; configPath: st
  */
 export function installFromPlan(plan: InstallPlan, token: string, c: InstallContext): InstallResult[] {
   if (!token.trim()) throw new Error('缺少 API Key，未执行安装。');
+  const cfg = cfgFromEnv({ ...c.env, ZHIZHUIP_TOKEN: token });
+  const environment = { ZHIZHUIP_TOKEN: cfg.token, ZHIZHUIP_BASE_URL: cfg.baseUrl, ZHIZHUIP_TIMEOUT_MS: String(cfg.timeoutMs) };
   safePath(c.home, plan.managedRoot);
   const runtime = runtimeAssets(c.packageRoot);
-  const runtimeRoot = join(plan.managedRoot, 'runtimes', runtime.fingerprint);
-  const launcher = join(runtimeRoot, 'launch.mjs');
+  const runtimeRoot = join(plan.managedRoot, 'versions', runtime.fingerprint);
+  const entryPath = join(runtimeRoot, 'dist', 'src', 'index.js');
   const skillFiles = files(join(c.packageRoot, 'skills', 'zhizhuip'));
   if (!skillFiles.some(f => f.relative === 'SKILL.md')) throw new Error('当前包没有包含蜘蛛 Skill，请更新安装包。');
   const planned = plan.targets.map(target => {
@@ -394,16 +373,12 @@ export function installFromPlan(plan: InstallPlan, token: string, c: InstallCont
       safePath(target.configRoot, target.configPath); safePath(target.skillRoot, target.skillPath);
       for (const file of skillFiles) safePath(target.skillRoot, join(target.skillPath, file.relative));
       const source = existsSync(target.configPath) ? readFileSync(target.configPath, 'utf8') : '';
-      return { target, content: mergeClientConfig(target, source, launcher, plan.credentialPath, plan.readonly, c.nodePath) };
+      return { target, content: mergeClientConfig(target, source, entryPath, environment, plan.readonly, c.nodePath) };
     } catch { return { target, error: '配置格式、路径或同名服务冲突，未修改此客户端；请检查后重试。' }; }
   });
   if (!planned.some(p => p.content !== undefined)) return planned.map(p => ({ agent: p.target.agent.id, success: false, configPath: p.target.configPath, skillPath: p.target.skillPath, backups: [], error: p.error }));
-  const common: Change[] = []; const commonBackups: string[] = [];
-  try {
-    prepareRuntime(runtimeRoot, runtime.assets, c);
-    writeManaged(c.home, plan.credentialPath, `${JSON.stringify({ token: token.trim() })}\n`, 0o600, common, commonBackups, c);
-    chmodSync(dirname(plan.credentialPath), 0o700);
-  } catch { rollback(common); throw new Error('固定运行目录或凭证写入失败，未配置客户端；已尝试恢复本次写入。'); }
+  try { prepareRuntime(runtimeRoot, runtime.assets, c); }
+  catch { throw new Error('固定运行目录写入失败，未配置客户端，请检查后重试。'); }
   const installedSkills = new Set<string>();
   const results: InstallResult[] = planned.map(item => {
     const { target } = item; const changes: Change[] = []; const backups: string[] = [];
@@ -419,15 +394,6 @@ export function installFromPlan(plan: InstallPlan, token: string, c: InstallCont
       return { ...result, success: false, error: restored ? '写入失败，已恢复此客户端的本次改动。' : '写入失败，部分文件未能恢复，请使用备份检查。' };
     }
   });
-  const firstSuccess = results.find(result => result.success);
-  if (firstSuccess) firstSuccess.backups.push(...commonBackups);
-  else {
-    const restored = rollback(common);
-    if (results[0]) {
-      results[0].backups.push(...commonBackups);
-      if (!restored) results[0].error = `${results[0].error ?? '安装失败。'}共享凭证未能恢复，请使用备份检查。`;
-    }
-  }
   return results;
 }
 
@@ -518,7 +484,10 @@ export async function runInstall(argv: string[], context: Partial<InstallContext
   const c: InstallContext = {
     home: homedir(), cwd: process.cwd(), packageRoot: fileURLToPath(new URL('../../', import.meta.url)), platform: process.platform,
     env: process.env, nodePath: process.execPath, interactive: !!process.stdin.isTTY && !!process.stdout.isTTY,
-    output: message => console.log(message), secret: readToken, fetch,
+    output: message => console.log(
+      message.startsWith('API Key 验证失败') && process.stdout.isTTY && process.stdout.hasColors?.()
+        ? `\x1b[1;31m${message}\x1b[0m` : message),
+    secret: readToken, fetch,
     ask: async message => { const rl = createInterface({ input: process.stdin, output: process.stdout }); try { return await rl.question(message); } finally { rl.close(); } },
     ...context,
   };
@@ -539,20 +508,20 @@ export async function runInstall(argv: string[], context: Partial<InstallContext
     const plan = createInstallPlan(options, c);
     c.output(`安装范围：${plan.scope}；MCP：${plan.readonly ? '只读' : '全部工具，保留写操作确认'}。`);
     for (const target of plan.targets) c.output(`${target.agent.name}\n  Skill：${target.skillPath}\n  MCP：${target.configPath}`);
-    c.output(`固定运行目录：${join(plan.managedRoot, 'runtimes')}\n私有凭证文件：${plan.credentialPath}`);
+    c.output(`固定运行目录：${join(plan.managedRoot, 'versions')}`);
     if (options.dryRun) {
       let valid = true;
       for (const target of plan.targets) {
         try {
           safePath(target.configRoot, target.configPath); safePath(target.skillRoot, target.skillPath);
-          mergeClientConfig(target, existsSync(target.configPath) ? readFileSync(target.configPath, 'utf8') : '', join(plan.managedRoot, 'runtimes', '<内容指纹>', 'launch.mjs'), plan.credentialPath, plan.readonly, c.nodePath);
+          mergeClientConfig(target, existsSync(target.configPath) ? readFileSync(target.configPath, 'utf8') : '', join(plan.managedRoot, 'versions', '<内容指纹>', 'dist', 'src', 'index.js'), {}, plan.readonly, c.nodePath);
         } catch { valid = false; c.output(`${target.agent.name}：预检查失败，请检查配置格式、路径或同名服务。`); }
       }
       c.output('仅预览，未写文件或读取 Key。'); return valid ? 0 : 1;
     }
     let token = c.env.ZHIZHUIP_TOKEN?.trim() || '';
     const promptForToken = c.interactive && !token;
-    // 仅手动输入允许重试，环境变量失败时退出，避免启动器继续优先使用旧 Key。
+    // 仅手动输入允许重试，环境变量失败时由调用方修正后重跑。
     while (true) {
       if (promptForToken) token = (await c.secret()).trim();
       if (!token) {
@@ -574,9 +543,9 @@ export async function runInstall(argv: string[], context: Partial<InstallContext
     const results = installFromPlan(plan, token, c);
     for (const result of results) {
       c.output(`${result.agent}：${result.success ? 'Skill 和 MCP 配置已安装' : result.error}`);
-      for (const backup of result.backups) c.output(`  备份：${backup}`);
+      if (!result.success) for (const backup of result.backups) c.output(`  备份：${backup}`);
     }
-    c.output('请重新加载所选客户端并检查 Skill 与 MCP 工具；本次仅查询用户信息验证 Key，未调用购买或账号修改接口。');
+    if (results.some(r => r.success)) c.output('请重启对应客户端，即可使用蜘蛛 IP。');
     return results.every(r => r.success) ? 0 : 1;
   } catch (e) {
     // 不转述来自文件内容或底层解析器的异常，避免错误文本携带凭证。

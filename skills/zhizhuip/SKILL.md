@@ -25,7 +25,7 @@ description: 使用蜘蛛 IP（zhizhuip）的 MCP 工具，为客户选择代理
 
 1. 从用户需求和上下文确定任务、产品及操作对象。已有信息足够时继续；产品或目标账号仍有歧义时，只询问影响本次操作的缺失信息。
 2. 检查当前客户端实际暴露的蜘蛛 MCP 工具。以工具 schema 为准填写参数；工具名前可能有客户端添加的命名空间。文档中的名称用于定位工具，不能当作工具已连接的证据。
-3. 未连接 MCP 时，引导用户按[仓库安装说明](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools#一次安装-skill-与-mcp)在本机通过 `install` 入口安装 Skill 和 MCP，或手动配置 `zhizhuip` 服务及 `ZHIZHUIP_TOKEN`。不要假定系统已全局安装 `zhizhuip-agent-tools` 命令。统一安装的启动器可从私有凭证文件读取 API Key，不要求在客户端配置中重复写 Key。不要索要网站登录密码或要求把完整 Key 发到对话中。连接缺失时可以提供产品说明，不能声称已查询账号或执行操作。
+3. 未连接 MCP 时，引导用户按[仓库安装说明](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools#一次安装-skill-与-mcp)在本机通过 `install` 入口安装 Skill 和 MCP，或手动配置 `zhizhuip` 服务及 `ZHIZHUIP_TOKEN`。不要假定系统已全局安装 `zhizhuip-agent-tools` 命令。统一安装会将 API Key、API 地址和请求超时写入所选客户端的 MCP 环境变量。不要索要网站登录密码或要求把完整 Key 发到对话中。连接缺失时可以提供产品说明，不能声称已查询账号或执行操作。
 4. 优先使用用户指定的已有账号。获取代理配置不自动购买产品或创建子账号。需要变更时先列清实际对象、参数、费用依据和影响，再走 MCP 确认流程。
 5. 依据实际返回结果报告完成情况。批量任务分别列出成功、失败和结果未知的对象；分页查询只覆盖部分数据时，注明范围。
 

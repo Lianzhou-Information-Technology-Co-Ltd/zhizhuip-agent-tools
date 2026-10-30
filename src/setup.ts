@@ -43,7 +43,7 @@ export function renderSetup(o: SetupOptions): string {
     '',
     `服务名 ${NAME}；命令 ${command}；参数 ${JSON.stringify(args)}；环境变量 ${ENV}。`,
     ...(o.token ? [] : ['下面所有片段里请把 你的token 换成蜘蛛 IP 网站 API Keys 页面生成的 API Key，做法见 README。']),
-    '以下手工配置通过服务的 env 提供 token；客户端不一定继承另一个终端的环境变量。统一安装器由启动器读取私有凭证文件。配置完成后重新加载对应客户端。',
+    '以下手工配置通过服务的 env 提供 token；统一安装器同样将 Key 写入所选客户端的环境配置。配置完成后重新加载对应客户端。',
     '',
     '== Claude Code ==',
     `claude mcp add -s user -e ${ENV}=${token} ${NAME} -- ${cli}`,

@@ -105,7 +105,7 @@ describe('安装参数和范围', () => {
 });
 
 describe('配置合并和幂等安装', () => {
-  it.each(AGENTS.map(agent => [agent.id]))('%s 全局安装保留其他设置和服务，不写入 Key 或 --yes', id => {
+  it.each(AGENTS.map(agent => [agent.id]))('%s 全局安装直启 MCP 并写入环境变量，保留其他设置和服务', id => {
     const c = fixture(); const p = plan(c, [id]); const t = p.targets[0];
     const initial = t.agent.format === 'toml'
       ? 'model = "keep"\n[mcp_servers.other]\ncommand = "other"\n'
@@ -116,10 +116,17 @@ describe('配置合并和幂等安装', () => {
     const cfg = readConfig(t); const added = server(t);
     expect(cfg[t.agent.key].other.command).toBe('other');
     expect(t.agent.format === 'toml' ? cfg.model : cfg.unrelated.keep).toBe(t.agent.format === 'toml' ? 'keep' : true);
-    expect(readFileSync(t.configPath, 'utf8')).not.toContain('fixture-new-key');
+    const environment = id === 'opencode' ? added.environment : added.env;
+    expect(environment).toEqual({ ZHIZHUIP_TOKEN: 'fixture-new-key', ZHIZHUIP_BASE_URL: 'https://www.zhizhuip.cc', ZHIZHUIP_TIMEOUT_MS: '30000' });
+    const args = id === 'opencode' ? added.command.slice(1) : added.args;
+    expect(id === 'opencode' ? added.command[0] : added.command).toBe(c.nodePath);
+    expect(args).toHaveLength(1);
+    expect(args[0]).toMatch(/[\\/]versions[\\/][a-f0-9]{24}[\\/]dist[\\/]src[\\/]index\.js$/);
+    expect(existsSync(args[0])).toBe(true);
+    expect(existsSync(join(dirname(dirname(dirname(args[0]))), 'launch.mjs'))).toBe(false);
+    expect(existsSync(join(p.managedRoot, 'credentials'))).toBe(false);
     expect(JSON.stringify(added)).not.toContain('--yes');
     expect(readFileSync(join(t.skillPath, 'SKILL.md'), 'utf8')).toContain('# Fixture');
-    expect(JSON.parse(readFileSync(p.credentialPath, 'utf8')).token).toBe('fixture-new-key');
     expect(results[0].backups.some(path => readFileSync(path, 'utf8') === initial)).toBe(true);
     const first = readFileSync(t.configPath, 'utf8');
     const again = installFromPlan(p, 'fixture-new-key', c);
@@ -134,19 +141,27 @@ describe('配置合并和幂等安装', () => {
     const global = plan(c, [id]);
     expect(existsSync(global.targets[0].configPath)).toBe(false);
   });
-  it('保留 JSONC 注释和未知服务器字段，清除旧 Key，替换跳过确认参数', () => {
+  it('迁移旧启动器配置，保留 JSONC 注释和其他变量，不改动旧凭证文件', () => {
     const c = fixture(); const p = plan(c, ['cursor']); const t = p.targets[0];
-    put(t.configPath, '{\n // comment survives\n "mcpServers": {"zhizhuip":{"command":"old","args":["--yes"],"timeout":123,"env":{"ZHIZHUIP_TOKEN":"old-key","OTHER":"keep"}}}\n}');
+    const credentials = join(p.managedRoot, 'credentials/global.json');
+    put(credentials, '{"token":"legacy-key"}\n');
+    const old = { command: 'old', args: [join(p.managedRoot, 'runtimes/legacy/launch.mjs'), '--credentials', credentials, '--yes'], timeout: 123,
+      env: { ZHIZHUIP_TOKEN: 'old-key', ZHIZHUIP_BASE_URL: 'https://old.example.invalid', ZHIZHUIP_TIMEOUT_MS: '1', OTHER: 'keep' } };
+    put(t.configPath, '{\n // comment survives\n "mcpServers": ' + JSON.stringify({ zhizhuip: old }) + '\n}');
     expect(installFromPlan(p, 'new-key', c)[0].success).toBe(true);
     expect(readFileSync(t.configPath, 'utf8')).toContain('// comment survives');
-    expect(server(t).timeout).toBe(123); expect(server(t).env).toEqual({ OTHER: 'keep' });
-    expect(server(t).args).not.toContain('--yes');
+    expect(server(t).timeout).toBe(123);
+    expect(server(t).env).toEqual({ OTHER: 'keep', ZHIZHUIP_TOKEN: 'new-key', ZHIZHUIP_BASE_URL: 'https://www.zhizhuip.cc', ZHIZHUIP_TIMEOUT_MS: '30000' });
+    expect(server(t).args).toHaveLength(1); expect(server(t).args[0]).toMatch(/[\\/]dist[\\/]src[\\/]index\.js$/);
+    expect(server(t).args).not.toContain('--credentials'); expect(server(t).args).not.toContain('--yes');
+    expect(readFileSync(credentials, 'utf8')).toBe('{"token":"legacy-key"}\n');
   });
   it('Codex TOML 保留嵌套设置且旧 Key 不覆盖新凭证', () => {
     const c = fixture(); const p = plan(c, ['codex']); const t = p.targets[0];
     put(t.configPath, '[mcp_servers.zhizhuip]\ncommand = "old"\nstartup_timeout_sec = 30\n[mcp_servers.zhizhuip.env]\nZHIZHUIP_TOKEN = "old"\nOTHER = "keep"\n[profiles.default]\nmodel = "keep"\n');
     expect(installFromPlan(p, 'new-key', c)[0].success).toBe(true);
-    expect(server(t).env).toEqual({ OTHER: 'keep' }); expect(server(t).startup_timeout_sec).toBe(30);
+    expect(server(t).env).toEqual({ OTHER: 'keep', ZHIZHUIP_TOKEN: 'new-key', ZHIZHUIP_BASE_URL: 'https://www.zhizhuip.cc', ZHIZHUIP_TIMEOUT_MS: '30000' });
+    expect(server(t).startup_timeout_sec).toBe(30);
     expect(readConfig(t).profiles.default.model).toBe('keep');
   });
   it('OpenCode 原生 mcp.servers 格式不混入旧 enabled 字段', () => {
@@ -155,6 +170,16 @@ describe('配置合并和幂等安装', () => {
     expect(installFromPlan(p, 'fixture-key', c)[0].success).toBe(true);
     const cfg = readConfig(t); expect(cfg.mcp.zhizhuip).toBeUndefined();
     expect(cfg.mcp.servers.zhizhuip.enabled).toBeUndefined(); expect(cfg.mcp.servers.other.command).toEqual(['other']);
+    expect(cfg.mcp.servers.zhizhuip.environment).toEqual({ ZHIZHUIP_TOKEN: 'fixture-key', ZHIZHUIP_BASE_URL: 'https://www.zhizhuip.cc', ZHIZHUIP_TIMEOUT_MS: '30000' });
+  });
+  it('更新 Key 只影响本次选择的客户端', () => {
+    const c = fixture(); const p = plan(c, ['codex', 'cursor']);
+    expect(installFromPlan(p, 'old-key', c).every(r => r.success)).toBe(true);
+    const untouched = readFileSync(p.targets[0].configPath, 'utf8');
+    expect(installFromPlan(plan(c, ['cursor']), 'new-key', c)[0].success).toBe(true);
+    expect(readFileSync(p.targets[0].configPath, 'utf8')).toBe(untouched);
+    expect(server(p.targets[0]).env.ZHIZHUIP_TOKEN).toBe('old-key');
+    expect(server(p.targets[1]).env.ZHIZHUIP_TOKEN).toBe('new-key');
   });
   it('不覆盖同名远程服务或错误配置，也不生成运行目录', () => {
     const c = fixture(); const p = plan(c, ['cursor', 'codex']);
@@ -176,7 +201,7 @@ describe('配置合并和幂等安装', () => {
 
 describe('固定运行目录和失败隔离', () => {
   it('实际 MCP 生产依赖闭包在移除模拟源包后仍完成初始化、工具和资源读取', async () => {
-    const c = fixture();
+    const c = fixture(); c.env.ZHIZHUIP_BASE_URL = 'http://127.0.0.1:1';
     const sourceRoot = process.env.ZHIZHUIP_INSTALL_TEST_PACKAGE_ROOT || fileURLToPath(new URL('../', import.meta.url));
     const sourceAssets = runtimeAssets(sourceRoot);
     rmSync(c.packageRoot, { recursive: true, force: true });
@@ -189,7 +214,7 @@ describe('固定运行目录和失败隔离', () => {
     const added = server(p.targets[0]);
     rmSync(c.packageRoot, { recursive: true, force: true });
     const client = new Client({ name: 'installer-fixture', version: '0.0.0' });
-    const env: Record<string, string> = { ...(process.env as Record<string, string>), ZHIZHUIP_BASE_URL: 'http://127.0.0.1:1' }; delete env.ZHIZHUIP_TOKEN;
+    const env: Record<string, string> = { ...(process.env as Record<string, string>), ...added.env };
     try {
       await client.connect(new StdioClientTransport({ command: process.execPath, args: added.args, env, stderr: 'ignore' }));
       const listed = await client.listTools();
@@ -203,14 +228,12 @@ describe('固定运行目录和失败隔离', () => {
     const c = fixture(); const p = plan(c, ['codex']); p.readonly = true;
     expect(installFromPlan(p, 'fixture-key', c)[0].success).toBe(true);
     const added = server(p.targets[0]);
-    expect(added.args[0]).toContain(join('.zhizhuip-agent-tools', 'runtimes'));
+    expect(added.args[0]).toContain(join('.zhizhuip-agent-tools', 'versions'));
     expect(added.args[0]).not.toContain(c.packageRoot);
     rmSync(c.packageRoot, { recursive: true, force: true });
-    const env = { ...process.env }; delete env.ZHIZHUIP_TOKEN;
+    const env = { ...process.env, ZHIZHUIP_TOKEN: 'stale-inherited-key', ...added.env };
     const out = JSON.parse(execFileSync(process.execPath, added.args, { env, encoding: 'utf8' }));
     expect(out).toEqual({ value: 'a:b', token: 'fixture-key', args: ['--readonly'] });
-    const override = JSON.parse(execFileSync(process.execPath, added.args, { env: { ...env, ZHIZHUIP_TOKEN: 'env-key' }, encoding: 'utf8' }));
-    expect(override.token).toBe('env-key');
   });
   it('运行文件内容变化后使用新目录，不覆盖旧运行版本', () => {
     const c = fixture(); const first = runtimeAssets(c.packageRoot).fingerprint;
@@ -241,11 +264,14 @@ describe('固定运行目录和失败隔离', () => {
     expect(installFromPlan(p, 'fixture-key', c).map(r => r.success)).toEqual([true, false]);
     expect(readFileSync(join(p.targets[0].skillPath, 'SKILL.md'), 'utf8')).toContain('# Fixture');
   });
-  it('全部客户端写入失败时恢复共享凭证', () => {
-    const c = fixture(); const p = plan(c, ['cursor']); put(p.credentialPath, '{"token":"old"}\n');
-    c.beforeWrite = path => { if (path === p.targets[0].configPath) throw new Error('simulated failure'); };
-    expect(installFromPlan(p, 'new', c)[0].success).toBe(false);
-    expect(JSON.parse(readFileSync(p.credentialPath, 'utf8')).token).toBe('old');
+  it('全部客户端写入失败时保留各自原配置与 Key', () => {
+    const c = fixture(); const p = plan(c, ['codex', 'cursor']);
+    expect(installFromPlan(p, 'old-key', c).every(r => r.success)).toBe(true);
+    const before = p.targets.map(t => readFileSync(t.configPath, 'utf8'));
+    c.beforeWrite = path => { if (p.targets.some(t => t.configPath === path)) throw new Error('simulated failure'); };
+    expect(installFromPlan(p, 'new-key', c).every(r => !r.success)).toBe(true);
+    expect(p.targets.map(t => readFileSync(t.configPath, 'utf8'))).toEqual(before);
+    expect(p.targets.map(t => server(t).env.ZHIZHUIP_TOKEN)).toEqual(['old-key', 'old-key']);
   });
   it('拒绝目标目录联接，不向链接指向的位置写入', () => {
     const c = fixture(); const outside = join(c.root, 'outside'); mkdirSync(outside);
@@ -265,15 +291,18 @@ describe('固定运行目录和失败隔离', () => {
     const p = plan(c, ['codex']); expect(installFromPlan(p, 'fixture-key', c)[0].success).toBe(false);
     expect(readdirSync(outside)).toEqual([]);
   });
-  it('Unix 凭证权限限制为当前用户读取', () => {
-    const c = fixture(); const p = plan(c, ['cursor']); installFromPlan(p, 'fixture-key', c);
-    if (process.platform !== 'win32') expect(statSync(p.credentialPath).mode & 0o777).toBe(0o600);
+  it('Unix 中含 Key 的配置与备份仅当前用户可读', () => {
+    const c = fixture(); const p = plan(c, ['cursor']); put(p.targets[0].configPath, '{}');
+    const result = installFromPlan(p, 'fixture-key', c)[0];
+    if (process.platform !== 'win32') {
+      for (const path of [p.targets[0].configPath, ...result.backups]) expect(statSync(path).mode & 0o777).toBe(0o600);
+    }
   });
-  it('重复安装收紧未变化凭证的 Unix 权限', () => {
+  it('重复安装收紧未变化配置的 Unix 权限', () => {
     const c = fixture(); const p = plan(c, ['cursor']); installFromPlan(p, 'fixture-key', c);
-    chmodSync(p.credentialPath, 0o644);
+    chmodSync(p.targets[0].configPath, 0o644);
     expect(installFromPlan(p, 'fixture-key', c)[0].success).toBe(true);
-    if (process.platform !== 'win32') expect(statSync(p.credentialPath).mode & 0o777).toBe(0o600);
+    if (process.platform !== 'win32') expect(statSync(p.targets[0].configPath).mode & 0o777).toBe(0o600);
   });
 });
 
@@ -302,11 +331,12 @@ describe('CLI 引导和无写入预览', () => {
     expect(new Headers(vi.mocked(c.fetch).mock.calls[0][1]?.headers).get('token')).toBe('fixture-secret');
     expect(c.messages.join('\n')).not.toContain('fixture-secret');
   });
-  it('环境 Key 优先，安装输出不包含 Key', async () => {
+  it('环境 Key、地址和超时用于验证并写入客户端，安装输出不包含 Key', async () => {
     const c = fixture(); c.interactive = true; c.env.ZHIZHUIP_TOKEN = ' fixture-env-key ';
+    c.env.ZHIZHUIP_BASE_URL = 'https://example.invalid/custom-api///'; c.env.ZHIZHUIP_TIMEOUT_MS = '45000';
     c.fetch = vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
       expect(readdirSync(c.home)).toEqual([]); expect(readdirSync(c.cwd)).toEqual([]);
-      expect(String(input)).toBe('https://www.zhizhuip.cc/externalapi/user/getGetUserInfo?is_mcp_send=1');
+      expect(String(input)).toBe('https://example.invalid/custom-api/externalapi/user/getGetUserInfo?is_mcp_send=1');
       expect(init).toMatchObject({ method: 'GET', redirect: 'error' });
       expect(Object.fromEntries(new Headers(init?.headers))).toEqual({
         token: 'fixture-env-key', accept: 'application/json', 'accept-language': 'zh-CN', 'user-agent': 'zhizhuip mcp',
@@ -316,6 +346,9 @@ describe('CLI 引导和无写入预览', () => {
     });
     expect(await runInstall(['--agents', 'cursor'], c)).toBe(0); expect(c.secret).not.toHaveBeenCalled();
     expect(c.fetch).toHaveBeenCalledOnce();
+    expect(server(plan(c, ['cursor']).targets[0]).env).toEqual({
+      ZHIZHUIP_TOKEN: 'fixture-env-key', ZHIZHUIP_BASE_URL: 'https://example.invalid/custom-api', ZHIZHUIP_TIMEOUT_MS: '45000',
+    });
     expect(c.messages.join('\n')).not.toContain('fixture-env-key');
     expect(c.messages.join('\n')).not.toContain('private@example.test');
   });
@@ -360,10 +393,10 @@ describe('安装前验证 API Key', () => {
   it.each([
     { name: '网络断开', error: new Error('private-profile sk-bad-key') },
     { name: '超时', error: new DOMException('private-profile sk-bad-key', 'TimeoutError') },
-  ])('$name 停止安装并保留已有凭证、配置和 Skill', async ({ error }) => {
+  ])('$name 停止安装并保留已有配置中的 Key 和 Skill', async ({ error }) => {
     const c = fixture(); c.env.ZHIZHUIP_TOKEN = 'sk-bad-key'; const p = plan(c, ['cursor']);
-    const paths = [p.credentialPath, p.targets[0].configPath, join(p.targets[0].skillPath, 'SKILL.md')];
-    const contents = ['{"token":"previous-key"}\n', '{"mcpServers":{"other":{"command":"keep"}}}\n', '# Existing Skill\n'];
+    const paths = [p.targets[0].configPath, join(p.targets[0].skillPath, 'SKILL.md')];
+    const contents = ['{"mcpServers":{"zhizhuip":{"command":"old","env":{"ZHIZHUIP_TOKEN":"previous-key"}},"other":{"command":"keep"}}}\n', '# Existing Skill\n'];
     paths.forEach((path, index) => put(path, contents[index]));
     const beforeFiles = readdirSync(c.home, { recursive: true }).sort();
     c.fetch = vi.fn(async () => { throw error; }); c.beforeWrite = vi.fn();
@@ -402,7 +435,7 @@ describe('安装前验证 API Key', () => {
       c.env.ZHIZHUIP_BASE_URL = `http://127.0.0.1:${(backend.address() as { port: number }).port}`;
       expect(await runInstall(['--agents', 'cursor'], c)).toBe(0);
       expect(hits).toEqual([{ method: 'GET', url: '/externalapi/user/getGetUserInfo?is_mcp_send=1', token: 'sk-loopback-valid', language: 'zh-CN' }]);
-      const p = plan(c, ['cursor']); const paths = [p.credentialPath, p.targets[0].configPath];
+      const p = plan(c, ['cursor']); const paths = [p.targets[0].configPath, join(p.targets[0].skillPath, 'SKILL.md')];
       const before = paths.map(path => readFileSync(path)); const beforeFiles = readdirSync(c.home, { recursive: true }).sort();
       valid = false; c.env.ZHIZHUIP_TOKEN = 'sk-loopback-invalid';
       expect(await runInstall(['--agents', 'cursor'], c)).toBe(1);
@@ -435,7 +468,7 @@ describe('交互输入验证失败后重试', () => {
     expect(await runInstall([], c)).toBe(0);
     expect(c.ask).toHaveBeenCalledOnce(); expect(c.secret).toHaveBeenCalledTimes(3); expect(c.fetch).toHaveBeenCalledTimes(3);
     expect(c.beforeWrite).toHaveBeenCalled();
-    expect(JSON.parse(readFileSync(plan(c, ['cursor']).credentialPath, 'utf8')).token).toBe(tokens[2]);
+    expect(server(plan(c, ['cursor']).targets[0]).env.ZHIZHUIP_TOKEN).toBe(tokens[2]);
     expect(c.messages.filter(message => message.startsWith('API Key 验证失败'))).toHaveLength(2);
     expect(c.messages.filter(message => message === 'API Key 验证通过，开始安装。')).toHaveLength(1);
     for (const secret of [...tokens, 'private-response']) expect(c.messages.join('\n')).not.toContain(secret);
@@ -468,8 +501,8 @@ describe('交互输入验证失败后重试', () => {
 
   it('失败后取消不再验证，也不覆盖已有安装', async () => {
     const c = fixture(); c.interactive = true; c.beforeWrite = vi.fn(); const p = plan(c, ['cursor']);
-    const paths = [p.credentialPath, p.targets[0].configPath, join(p.targets[0].skillPath, 'SKILL.md')];
-    const contents = ['{"token":"previous-key"}', '{"mcpServers":{"other":{"command":"keep"}}}', '# Existing Skill'];
+    const paths = [p.targets[0].configPath, join(p.targets[0].skillPath, 'SKILL.md')];
+    const contents = ['{"mcpServers":{"zhizhuip":{"command":"old","env":{"ZHIZHUIP_TOKEN":"previous-key"}},"other":{"command":"keep"}}}', '# Existing Skill'];
     paths.forEach((path, index) => put(path, contents[index]));
     const files = readdirSync(c.home, { recursive: true }).sort();
     c.secret = vi.fn().mockResolvedValueOnce('fixture-bad-key').mockRejectedValue(new Error('已取消安装。'));

@@ -15,7 +15,7 @@
 
 先安装 Node.js 20 或更新版本（自带 npm/npx）和 Git，并准备蜘蛛 IP API Key。以下两种方式任选一种。
 
-**实际安装必须通过 API Key 验证。** 安装器优先读取 `ZHIZHUIP_TOKEN`；未设置时在交互终端输入，显示首尾各 4 位，中间用星号遮住。写入运行文件、Skill、凭证和客户端配置之前，会查询只读用户信息接口验证 Key；验证失败时保留已有配置与凭证。未提供环境变量 Key 时，手动交互输入失败会提示重新输入，可按 `Ctrl+C` 取消；验证通过后才安装。使用环境变量 Key 或非交互执行时，验证失败以退出码 1 结束，不再询问输入。非交互执行必须提前设置 `ZHIZHUIP_TOKEN`，并用 `--agents` 指定客户端；`--help`、`--list`、`--dry-run` 不需要 Key，也不发送验证请求。
+**实际安装必须通过 API Key 验证。** 安装器优先读取 `ZHIZHUIP_TOKEN`；未设置时在交互终端输入，显示首尾各 4 位，中间用星号遮住。写入运行文件、Skill 和客户端配置之前，会查询只读用户信息接口验证 Key；验证失败时保留已有配置与凭证。未提供环境变量 Key 时，手动交互输入失败会提示重新输入，可按 `Ctrl+C` 取消；验证通过后才安装。使用环境变量 Key 或非交互执行时，验证失败以退出码 1 结束，不再询问输入。非交互执行必须提前设置 `ZHIZHUIP_TOKEN`，并用 `--agents` 指定客户端；`--help`、`--list`、`--dry-run` 不需要 Key，也不发送验证请求。
 
 **方式一：从 GitHub 自动下载并安装。** npx 会获取远程仓库代码、安装依赖并构建，再启动安装器；无需手动克隆或另行运行 `npm ci`：
 
@@ -62,7 +62,7 @@ node dist/src/index.js install --agents cursor --readonly
 
 `--scope project` 指执行命令时的当前目录。只为某个业务项目安装时，先进入该业务项目目录，再运行 GitHub npx 安装命令并加 `--scope project`；使用本地源码时，改用 `node "<工具源码目录的绝对路径>/dist/src/index.js" install --scope project`。不要在工具源码目录中直接指定项目范围，除非要接入的正是这个目录。安装器复制同包 Skill 与 MCP 的生产运行文件到固定位置，统一配置所选客户端；不会依赖之后可能被清理的 npx 缓存。现有其他服务与设置保留，更新前备份，重复运行同一命令可更新或修复；默认保留 MCP 写操作确认，不支持 `install --yes`。客户端原有的停用或信任设置仍需自行核对。
 
-API Key 保存在当前用户的 `~/.zhizhuip-agent-tools/credentials/`，客户端配置只引用凭证文件；启动器优先使用进程中的 `ZHIZHUIP_TOKEN`，没有时从该文件读取并设置此变量后启动 MCP。因此配置中没有明文 token 也仍有鉴权。各项目范围使用独立文件，全局安装共享一个 Key。不要提交或分享该目录及配置备份。POSIX 下设置私有权限，Windows 使用当前用户目录已有 ACL。更新全局 Key 会影响此前使用该全局文件的蜘蛛客户端；既有备份也可能含旧 Key。
+安装器使用 Node.js 直接启动 `~/.zhizhuip-agent-tools/versions/<内容指纹>/dist/src/index.js`，并将 `ZHIZHUIP_TOKEN`、`ZHIZHUIP_BASE_URL` 和 `ZHIZHUIP_TIMEOUT_MS` 写入所选客户端的 MCP 环境变量；OpenCode 使用 `environment` 字段。Key 分别保存在各客户端配置中，重新安装只更新本次选择的客户端。项目配置和备份可能包含 Key，不要提交或分享。POSIX 下配置与备份使用私有权限，Windows 使用当前用户目录已有 ACL。
 
 完成后重新加载所选客户端，检查 `zhizhuip` Skill 和 MCP 工具。客户端若要求信任项目、启用 Skills 或允许 MCP，按其提示处理。`--list` 仅检测相关目录，不能证明客户端已安装或已加载配置；请在对应客户端中确认连接状态。远程开发、不同 VS Code Profile、Insiders 和其他宿主中的 Cline 不属于该默认路径适配范围；Windsurf 仅适配经典 `.codeium/windsurf` 目录，不覆盖 Devin 的新配置路径。
 
@@ -168,7 +168,7 @@ claude mcp add -s user -e ZHIZHUIP_TOKEN=YOUR_API_KEY zhizhuip -- node <安装�
 
 setup 的输出按客户端分段：Claude Code 与 Codex CLI 各一条可直接执行的命令，Claude Desktop、Cursor、经典 Windsurf、VS Code、Zed 各给配置文件位置和 JSON 或 TOML 片段，最后一段是任何支持 stdio 的客户端都能用的标准 `mcpServers` JSON。
 
-注意：客户端不一定继承另一个终端中的环境变量。手工接入时通过客户端 MCP 配置提供 `ZHIZHUIP_TOKEN`；统一安装器则由启动器读取私有凭证文件，再传给 MCP 进程。
+注意：客户端不一定继承另一个终端中的环境变量。统一安装器会将 Key、API 地址和请求超时写入该服务的环境变量；手工接入时也应在客户端 MCP 配置中提供 `ZHIZHUIP_TOKEN`。安装时设置的 `ZHIZHUIP_BASE_URL`、`ZHIZHUIP_TIMEOUT_MS` 会同时用于 Key 验证和安装后的 MCP 请求；未设置时使用上表默认值。
 
 ## 写操作确认
 

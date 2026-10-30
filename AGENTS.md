@@ -11,16 +11,16 @@ TypeScript、Node.js ≥ 20、官方 MCP SDK v2，仅 stdio。当前 [工具规�
 ## 安装与运行入口
 
 - `npm ci`：按锁文件安装，`prepare` 自动构建到 `dist/`。
-- `node dist/src/index.js install`：交互选择客户端，一次安装同包 Skill 与 MCP；优先读取环境变量 `ZHIZHUIP_TOKEN`，缺失时交互输入并显示首尾各 4 位，中间遮罩。实际安装先查询只读用户信息接口验证 Key，失败时不写入运行文件、Skill、凭证或客户端配置。仅未提供环境变量 Key 的手动交互输入支持失败后重输；空输入不发送请求，`Ctrl+C` 取消。环境变量 Key 验证失败时即使在交互终端也退出；非交互失败同样以退出码 1 结束，不自动重试。
+- `node dist/src/index.js install`：交互选择客户端，一次安装同包 Skill 与 MCP；优先读取环境变量 `ZHIZHUIP_TOKEN`，缺失时交互输入并显示首尾各 4 位，中间遮罩。实际安装先查询只读用户信息接口验证 Key，失败时不写入运行文件、Skill 或客户端配置。仅未提供环境变量 Key 的手动交互输入支持失败后重输；空输入不发送请求，`Ctrl+C` 取消。环境变量 Key 验证失败时即使在交互终端也退出；非交互失败同样以退出码 1 结束，不自动重试。
 - `node dist/src/index.js install --agents claude-code,cursor,codex --scope global`：明确客户端与范围；支持 `--readonly`、`--list`、`--dry-run`、`--help`。非交互执行必须指定 `--agents` 并提供环境变量 Key；`--help`、`--list`、`--dry-run` 不读 Key、不发送验证请求。
 - `install` 适配 Claude Code、Cursor、Codex、Gemini CLI、OpenCode、经典 Windsurf、Cline 的 VS Code 扩展、VS Code Copilot；Cline 与 Windsurf 仅 global，其余支持 project/global。具体路径见 [USAGE](USAGE.md) 与 [src/install.ts](src/install.ts)。`--list` 只检测相关目录，不证明软件已安装或已加载配置。
 - `node dist/src/index.js setup [--readonly] [--npx]`：仅打印 MCP 配置片段，不写配置或安装 Skill。`setup --token ...` 会把 Key 放进命令参数及输出，只供维护者明确需要时使用；通常优先 `install`。
 - `setup --npx` 使用 `github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools`。npm 包名与启动命令统一为 `zhizhuip-agent-tools`。
 - `node dist/src/index.js [--readonly] [--yes]`：直接启动 MCP。`--yes` 确实会绕过写确认，仅用于明确授权的自动化；安装器不接受或生成 `--yes`，不设置客户端工具自动批准。
 
-直接运行时 API Key 由进程环境 `ZHIZHUIP_TOKEN` 提供。客户端不一定继承当前终端环境，应检查实际子进程配置；不能断言 Key 只能写进客户端配置。`install` 将 Key 保存在用户目录 `~/.zhizhuip-agent-tools/credentials/`，配置只引用凭证文件；固定启动器优先读取环境 Key，否则读取该文件。Inspector 调试可通过其 `-e` 传入环境变量，不在日志或文档保存真实值。
+直接运行时 API Key 由进程环境 `ZHIZHUIP_TOKEN` 提供。客户端不一定继承当前终端环境，应检查实际子进程配置。`install` 将验证通过的 Key、API 地址与超时分别写入所选客户端 MCP 配置的 `ZHIZHUIP_TOKEN`、`ZHIZHUIP_BASE_URL`、`ZHIZHUIP_TIMEOUT_MS` 环境变量；OpenCode 使用 `environment`，其余已适配客户端使用 `env`。后两项默认值为 `https://www.zhizhuip.cc` 和字符串 `30000`。这三项按本次安装值更新，其他环境变量继续保留。Inspector 调试可通过其 `-e` 传入环境变量，不在日志或文档保存真实值。
 
-安装后的运行目录位于 `~/.zhizhuip-agent-tools/runtimes/<内容指纹>/`，包含同包产物与生产依赖，不依赖 npx 缓存继续存在。全局安装共享凭证，项目范围按项目路径隔离；更新全局 Key 会影响共享该凭证的既有客户端。变化文件备份，单个客户端失败时恢复自身改动并保留其他成功结果；全部失败时尝试恢复共享凭证，已复制的运行缓存可能保留。TOML 保留配置值但不保证注释、格式不变。POSIX 使用私有权限，Windows 继承用户目录 ACL，不宣称另做 ACL 加固。含符号链接或目录联接的目标会被拒绝。
+安装后的运行目录位于 `~/.zhizhuip-agent-tools/versions/<内容指纹>/`，包含同包产物与生产依赖，由 Node.js 直接启动其中的 `dist/src/index.js`，不依赖 npx 缓存继续存在。每个客户端独立保存 Key，重新安装仅更新所选客户端及范围；不再创建启动器或独立凭证文件。变化文件备份，单个客户端失败时恢复自身配置和 Skill，保留其他成功结果；已复制的运行缓存可能保留。旧配置重跑相同范围和客户端即可迁移，未选择客户端、旧运行目录和凭证文件不自动删除。TOML 保留配置值但不保证注释、格式不变。POSIX 下配置与备份使用私有权限，Windows 继承用户目录 ACL，不宣称另做 ACL 加固。项目配置和备份可能含 Key，不提交或分享；含符号链接或目录联接的目标会被拒绝。
 
 ## 工具、生成器与文档来源
 
