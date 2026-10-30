@@ -11,6 +11,10 @@
 
 ### 2. 运行安装命令
 
+以下两种方式任选一种。
+
+#### 方式 1：一键安装
+
 在 PowerShell、终端或 Git Bash 中执行：
 
 ```bash
@@ -18,6 +22,21 @@ npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools instal
 ```
 
 命令会自动下载项目、安装依赖并构建，**无需提前下载源码或运行 `npm ci`**。首次下载请耐心等待。
+
+#### 方式 2：Git 下载到本地安装
+
+在准备存放项目的目录打开终端，依次执行：
+
+```bash
+git clone https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools.git
+cd zhizhuip-agent-tools
+npm ci
+node dist/src/index.js install
+```
+
+`git clone` 下载项目，`cd` 进入项目目录，`npm ci` 安装依赖并自动构建，最后一条命令启动安装器。已有源码时，进入项目目录后执行最后两条命令即可。
+
+#### 完成安装
 
 按提示输入客户端 ID（例如 `codex`，多个用英文逗号分隔），再粘贴 API Key 并回车。默认安装到当前用户，所有项目可用；Key 验证通过后才开始安装，手动输错可继续输入，`Ctrl+C` 取消。若已设置 `ZHIZHUIP_TOKEN`，会直接使用该环境变量，验证失败需修改变量后重跑。
 
@@ -54,7 +73,7 @@ npx -y github:Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools instal
 | Cline（VS Code 扩展） | `cline` |
 | VS Code Copilot | `vscode` |
 
-以下选项追加在 `install` 后：
+以下选项适用于两种安装方式，均追加在 `install` 后：
 
 | 选项 | 用途 |
 | --- | --- |
@@ -77,22 +96,6 @@ Windsurf 和 Cline 仅支持用户全局安装。Windsurf 适配经典 `.codeium
 - [Skill 操作指南](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools/blob/main/skills/zhizhuip/SKILL.md)：产品选择、查询与管理流程。
 - [工具覆盖表](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools/blob/main/skills/zhizhuip/references/tool-map.md)：支持的工具、产品范围与使用限制。
 - [API 文档](https://develop.zhizhuip.com/llms.txt) · [开发与维护约定](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools/blob/main/AGENTS.md)。
-
-<details>
-<summary>从源码安装或参与开发</summary>
-
-在准备存放源码的目录打开终端，依次执行：
-
-```bash
-git clone https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools.git
-cd zhizhuip-agent-tools
-npm ci
-node dist/src/index.js install
-```
-
-`npm ci` 会安装依赖并自动构建。已有源码时，先进入包含 `package.json` 的目录，再执行最后两条命令。开发验证使用 `npm test`；接口规格的维护方式见[开发约定](https://github.com/Lianzhou-Information-Technology-Co-Ltd/zhizhuip-agent-tools/blob/main/AGENTS.md)。
-
-</details>
 
 ## 许可
 
