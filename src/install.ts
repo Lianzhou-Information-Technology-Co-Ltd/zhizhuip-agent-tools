@@ -4,8 +4,8 @@ import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, parse as parsePath, relative, resolve, sep } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { createInterface } from 'node:readline/promises';
 import { clearLine, cursorTo } from 'node:readline';
+import { isCancel, multiselect, select } from '@clack/prompts';
 import { applyEdits, modify, parse, type ParseError } from 'jsonc-parser';
 import * as TOML from '@iarna/toml';
 import { cfgFromEnv } from './http.js';
@@ -14,7 +14,8 @@ export type InstallScope = 'project' | 'global';
 export interface InstallOptions { agents: string[]; scope: InstallScope; list: boolean; dryRun: boolean; help: boolean; readonly: boolean }
 export interface InstallContext {
   home: string; cwd: string; packageRoot: string; platform: NodeJS.Platform; env: NodeJS.ProcessEnv; nodePath: string;
-  interactive: boolean; output: (message: string) => void; ask: (message: string) => Promise<string>; secret: () => Promise<string>;
+  interactive: boolean; output: (message: string) => void; secret: () => Promise<string>;
+  selectAgents: typeof multiselect<string>; selectScope: typeof select<InstallScope>;
   fetch: typeof fetch;
   /** 仅供隔离测试模拟写入失败，不接收凭证内容。 */
   beforeWrite?: (path: string) => void;
@@ -32,8 +33,8 @@ export const AGENTS: readonly Agent[] = [
 ];
 
 export const INSTALL_HELP = `用法：zhizhuip-agent-tools install [选项]
-  --agents <列表>      逗号分隔客户端 ID；省略时检测并交互多选
-  --scope <范围>      project 或 global，默认 global
+  --agents <列表>      逗号分隔客户端 ID；省略时用方向键移动、空格多选、回车确认
+  --scope <范围>      project 或 global；省略时交互选择，非交互默认 global
   --readonly          安装只读 MCP；默认保留全部工具及写操作确认
   --list              列出已适配客户端、支持范围及检测结果
   --dry-run           仅检查并展示计划，不写文件、不读取或索要 Key
@@ -489,23 +490,42 @@ export async function runInstall(argv: string[], context: Partial<InstallContext
         : message === 'API Key 验证通过，开始安装。' || message.endsWith('：Skill 和 MCP 配置已安装') || message === '请重启对应客户端，即可使用蜘蛛 IP。' ? 32 : undefined;
       console.log(color && process.stdout.isTTY && process.stdout.hasColors?.() ? `\x1b[1;${color}m${message}\x1b[0m` : message);
     },
-    secret: readToken, fetch,
-    ask: async message => { const rl = createInterface({ input: process.stdin, output: process.stdout }); try { return await rl.question(message); } finally { rl.close(); } },
+    secret: readToken, fetch, selectAgents: multiselect, selectScope: select,
     ...context,
   };
   try {
     const options = parseInstallArgs(argv);
     if (options.help) { c.output(INSTALL_HELP); return 0; }
     if (options.list || !options.agents.length) {
-      for (const agent of AGENTS) {
-        const probe = createInstallPlan({ ...options, agents: [agent.id], scope: agent.scopes.includes(options.scope) ? options.scope : 'global' }, c).targets[0];
-        c.output(`${agent.id}：${agent.name}；范围 ${agent.scopes.join('/')}；${probe.detected ? '检测到相关目录' : '未检测到相关目录'}`);
+      const probes = AGENTS.map(agent => createInstallPlan({ ...options, agents: [agent.id], scope: agent.scopes.includes(options.scope) ? options.scope : 'global' }, c).targets[0]);
+      if (options.list) {
+        for (const { agent, detected } of probes) c.output(`${agent.id}：${agent.name}；范围 ${agent.scopes.join('/')}；${detected ? '检测到相关目录' : '未检测到相关目录'}`);
+        return 0;
       }
-      if (options.list) return 0;
       if (!c.interactive) throw new Error('请通过 --agents 明确选择客户端；不会自动安装到全部客户端。');
-      const choice = await c.ask('选择客户端 ID（可多选，用逗号分隔）：');
-      options.agents = parseInstallArgs(['--agents', choice]).agents;
+      const choice = await c.selectAgents({
+        message: '选择安装蜘蛛 IP 的客户端（方向键移动，空格选择，回车继续）：',
+        options: probes.map(({ agent, detected }) => ({
+          value: agent.id, label: agent.name,
+          hint: [detected ? '检测到相关目录' : '', agent.scopes.length === 1 ? '仅支持全局安装' : ''].filter(Boolean).join('；') || undefined,
+        })),
+        required: true,
+      });
+      if (isCancel(choice)) throw new Error('已取消安装。');
+      options.agents = choice;
       if (!options.agents.length) throw new Error('未选择客户端，未执行安装。');
+    }
+    if (c.interactive && !argv.some(arg => arg === '--scope' || arg.startsWith('--scope='))) {
+      const choice = await c.selectScope({
+        message: '安装范围（方向键选择，回车继续）：',
+        options: [
+          { value: 'global' as const, label: '当前用户的所有项目' },
+          { value: 'project' as const, label: '当前项目' },
+        ].filter(option => options.agents.every(id => AGENTS.find(agent => agent.id === id)!.scopes.includes(option.value))),
+        initialValue: 'global',
+      });
+      if (isCancel(choice)) throw new Error('已取消安装。');
+      options.scope = choice;
     }
     const plan = createInstallPlan(options, c);
     c.output(`安装范围：${plan.scope}；MCP：${plan.readonly ? '只读' : '全部工具，保留写操作确认'}。`);

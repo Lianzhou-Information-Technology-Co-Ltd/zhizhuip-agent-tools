@@ -11,6 +11,11 @@ import { parse as parseJsonc } from 'jsonc-parser';
 import * as TOML from '@iarna/toml';
 import { AGENTS, createInstallPlan, formatTokenInput, installFromPlan, mergeClientConfig, parseInstallArgs, runInstall, runtimeAssets, type InstallContext, type InstallTarget } from '../src/install.js';
 
+vi.mock('@clack/prompts', async importOriginal => ({
+  ...await importOriginal<typeof import('@clack/prompts')>(),
+  isCancel: (value: unknown) => typeof value === 'symbol',
+}));
+
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
@@ -40,7 +45,7 @@ function fixture(): InstallContext & { root: string; messages: string[] } {
   put(join(packageRoot, 'node_modules/dep-b/index.js'), `export default 'b';`);
   return { root, home, cwd, packageRoot, messages, platform: process.platform, env: {}, nodePath: process.execPath, interactive: false,
     fetch: vi.fn(async () => new Response(JSON.stringify({ code: 1, data: { id: 1 } }))),
-    output: message => messages.push(message), ask: vi.fn(async () => ''), secret: vi.fn(async () => 'fixture-secret') };
+    output: message => messages.push(message), selectAgents: vi.fn(async () => []), selectScope: vi.fn(async () => 'global' as const), secret: vi.fn(async () => 'fixture-secret') };
 }
 /** 按指定客户端生成测试安装计划。
  *
@@ -308,28 +313,72 @@ describe('固定运行目录和失败隔离', () => {
 
 describe('CLI 引导和无写入预览', () => {
   it.each([['--help'], ['--list']].map(args => ({ args })))('$args 不需要 Key、不写文件', async ({ args }) => {
-    const c = fixture(); expect(await runInstall(args, c)).toBe(0);
+    const c = fixture(); c.interactive = true; expect(await runInstall(args, c)).toBe(0);
+    expect(c.selectAgents).not.toHaveBeenCalled(); expect(c.selectScope).not.toHaveBeenCalled();
     expect(c.secret).not.toHaveBeenCalled(); expect(c.fetch).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
   });
-  it('dry-run 不读取 Key、不调用输入或验证接口、不写文件', async () => {
-    const c = fixture(); c.interactive = true;
+  it('dry-run 可选择客户端和范围，但不读取 Key、不请求验证或写文件', async () => {
+    const c = fixture(); c.interactive = true; c.selectAgents = vi.fn(async () => ['codex', 'cursor']);
+    c.selectScope = vi.fn(async () => 'project' as const);
     Object.defineProperty(c.env, 'ZHIZHUIP_TOKEN', { get: () => { throw new Error('must not read token'); } });
-    expect(await runInstall(['--agents', 'codex,cursor', '--dry-run'], c)).toBe(0);
+    expect(await runInstall(['--dry-run'], c)).toBe(0);
+    expect(c.selectAgents).toHaveBeenCalledOnce(); expect(c.selectScope).toHaveBeenCalledOnce();
+    expect(c.secret).not.toHaveBeenCalled(); expect(c.fetch).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
+    expect(readdirSync(c.cwd)).toEqual([]);
+  });
+  it.each([['--scope', 'global'], ['--scope=global']].map(scope => ({ scope })))('显式客户端和范围 $scope 跳过选择菜单', async ({ scope }) => {
+    const c = fixture(); c.interactive = true;
+    expect(await runInstall(['--agents', 'cursor', ...scope, '--dry-run'], c)).toBe(0);
+    expect(c.selectAgents).not.toHaveBeenCalled(); expect(c.selectScope).not.toHaveBeenCalled();
     expect(c.secret).not.toHaveBeenCalled(); expect(c.fetch).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
   });
   it('非交互且未指定客户端时拒绝，不自动安装全部', async () => {
     const c = fixture(); c.env.ZHIZHUIP_TOKEN = 'fixture-key';
     expect(await runInstall([], c)).toBe(1); expect(c.fetch).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
+    expect(c.selectAgents).not.toHaveBeenCalled(); expect(c.selectScope).not.toHaveBeenCalled();
   });
   it('缺 Key 的非交互执行不写入配置', async () => {
     const c = fixture(); expect(await runInstall(['--agents', 'cursor'], c)).toBe(1); expect(c.fetch).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
   });
-  it('交互多选后验证输入的 Key，安装输出不回显完整 Key', async () => {
-    const c = fixture(); c.interactive = true; c.ask = vi.fn(async () => 'codex,cursor');
-    expect(await runInstall([], c)).toBe(0); expect(c.ask).toHaveBeenCalledOnce(); expect(c.secret).toHaveBeenCalledOnce();
+  it('交互多选并选择项目范围，验证 Key 后只安装所选客户端的项目配置', async () => {
+    const c = fixture(); c.interactive = true; c.selectAgents = vi.fn(async () => ['codex', 'cursor']);
+    c.selectScope = vi.fn(async () => 'project' as const);
+    mkdirSync(join(c.home, '.cursor'));
+    expect(await runInstall([], c)).toBe(0); expect(c.selectAgents).toHaveBeenCalledOnce(); expect(c.secret).toHaveBeenCalledOnce();
+    const menu = vi.mocked(c.selectAgents).mock.calls[0][0];
+    expect(menu.initialValues ?? []).toEqual([]);
+    expect(menu.options.find(option => option.value === 'cursor')?.hint).toContain('检测到');
+    expect(c.selectScope).toHaveBeenCalledOnce();
+    expect(vi.mocked(c.selectScope).mock.calls[0][0].options.map(option => option.value)).toEqual(['global', 'project']);
+    for (const target of plan(c, ['codex', 'cursor'], 'project').targets) {
+      expect(existsSync(target.configPath)).toBe(true); expect(existsSync(join(target.skillPath, 'SKILL.md'))).toBe(true);
+      expect(server(target).env.ZHIZHUIP_TOKEN).toBe('fixture-secret');
+    }
+    for (const target of plan(c, ['codex', 'cursor']).targets) expect(existsSync(target.configPath)).toBe(false);
     expect(c.fetch).toHaveBeenCalledOnce();
     expect(new Headers(vi.mocked(c.fetch).mock.calls[0][1]?.headers).get('token')).toBe('fixture-secret');
     expect(c.messages.join('\n')).not.toContain('fixture-secret');
+  });
+  it.each(['selectAgents', 'selectScope'] as const)('%s 阶段取消时不读取 Key、不请求验证或写文件', async stage => {
+    const c = fixture(); c.interactive = true; c.selectAgents = vi.fn(async () => ['cursor']);
+    vi.mocked(c[stage]).mockResolvedValueOnce(Symbol('cancel'));
+    expect(await runInstall([], c)).toBe(1);
+    if (stage === 'selectAgents') expect(c.selectScope).not.toHaveBeenCalled();
+    expect(c.secret).not.toHaveBeenCalled(); expect(c.fetch).not.toHaveBeenCalled();
+    expect(readdirSync(c.home)).toEqual([]); expect(readdirSync(c.cwd)).toEqual([]);
+  });
+  it('没有勾选客户端时不继续安装', async () => {
+    const c = fixture(); c.interactive = true;
+    expect(await runInstall([], c)).toBe(1);
+    expect(c.selectScope).not.toHaveBeenCalled(); expect(c.secret).not.toHaveBeenCalled(); expect(c.fetch).not.toHaveBeenCalled();
+    expect(readdirSync(c.home)).toEqual([]); expect(readdirSync(c.cwd)).toEqual([]);
+  });
+  it.each(['windsurf', 'cline'])('选择 %s 时范围菜单仅提供 global', async id => {
+    const c = fixture(); c.interactive = true;
+    expect(await runInstall(['--agents', `cursor,${id}`, '--dry-run'], c)).toBe(0);
+    expect(c.selectAgents).not.toHaveBeenCalled(); expect(c.selectScope).toHaveBeenCalledOnce();
+    expect(vi.mocked(c.selectScope).mock.calls[0][0].options.map(option => option.value)).toEqual(['global']);
+    expect(c.secret).not.toHaveBeenCalled(); expect(c.fetch).not.toHaveBeenCalled(); expect(readdirSync(c.home)).toEqual([]);
   });
   it('环境 Key、地址和超时用于验证并写入客户端，安装输出不包含 Key', async () => {
     const c = fixture(); c.interactive = true; c.env.ZHIZHUIP_TOKEN = ' fixture-env-key ';
@@ -454,7 +503,7 @@ describe('安装前验证 API Key', () => {
 
 describe('交互输入验证失败后重试', () => {
   it('连续输错后留在同一次安装，只有最后验证通过的 Key 被保存', async () => {
-    const c = fixture(); c.interactive = true; c.ask = vi.fn(async () => 'cursor'); c.beforeWrite = vi.fn();
+    const c = fixture(); c.interactive = true; c.selectAgents = vi.fn(async () => ['cursor']); c.beforeWrite = vi.fn();
     const tokens = ['fixture-bad-one', 'fixture-bad-two', 'fixture-valid'];
     c.secret = vi.fn().mockResolvedValueOnce(tokens[0]).mockResolvedValueOnce(tokens[1])
       .mockResolvedValueOnce(tokens[2]).mockRejectedValue(new Error('已取消安装。'));
@@ -466,7 +515,8 @@ describe('交互输入验证失败后重试', () => {
       return new Response(JSON.stringify(requests < 3 ? { code: 401, msg: 'private-response' } : { code: 1, data: { id: 1 } }));
     });
     expect(await runInstall([], c)).toBe(0);
-    expect(c.ask).toHaveBeenCalledOnce(); expect(c.secret).toHaveBeenCalledTimes(3); expect(c.fetch).toHaveBeenCalledTimes(3);
+    expect(c.selectAgents).toHaveBeenCalledOnce(); expect(c.selectScope).toHaveBeenCalledOnce();
+    expect(c.secret).toHaveBeenCalledTimes(3); expect(c.fetch).toHaveBeenCalledTimes(3);
     expect(c.beforeWrite).toHaveBeenCalled();
     expect(server(plan(c, ['cursor']).targets[0]).env.ZHIZHUIP_TOKEN).toBe(tokens[2]);
     expect(c.messages.filter(message => message.startsWith('API Key 验证失败'))).toHaveLength(2);

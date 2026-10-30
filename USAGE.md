@@ -100,7 +100,9 @@ ZHIZHUIP_TOKEN="YOUR_API_KEY" npx -y github:Lianzhou-Information-Technology-Co-L
 
 ### 安装选项与完成检查
 
-未通过 `--agents` 指定客户端时，交互终端会提示多选；未设置 `ZHIZHUIP_TOKEN` 时再输入 API Key 并核对显示的首尾字符。默认 `global`，适用于当前用户的各项目。下面以 GitHub 方式示例；源码方式在工具源码目录用 `node dist/src/index.js install` 加相同参数。
+未通过 `--agents` 指定客户端时，用方向键移动、空格勾选一个或多个客户端，回车继续；未指定 `--scope` 时，再用方向键选择“当前用户的所有项目”（`global`）或“当前项目”（`project`），回车确认。范围菜单只显示所选客户端共同支持的范围，初始选中 `global`。未设置 `ZHIZHUIP_TOKEN` 时再输入 API Key 并核对显示的首尾字符；选择或输入时均可按 `Ctrl+C` 取消。
+
+显式提供 `--agents`、`--scope` 会跳过对应菜单；非交互执行未指定范围时仍使用 `global`。下面以 GitHub 方式示例；源码方式在工具源码目录用 `node dist/src/index.js install` 加相同参数。
 
 ```bash
 # 一次安装多个客户端。

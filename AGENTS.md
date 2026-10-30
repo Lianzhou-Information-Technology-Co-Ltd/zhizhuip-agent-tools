@@ -11,7 +11,7 @@ TypeScript、Node.js ≥ 20、官方 MCP SDK v2，仅 stdio。当前 [工具规�
 ## 安装与运行入口
 
 - `npm ci`：按锁文件安装，`prepare` 自动构建到 `dist/`。
-- `node dist/src/index.js install`：交互选择客户端，一次安装同包 Skill 与 MCP；优先读取环境变量 `ZHIZHUIP_TOKEN`，缺失时交互输入并显示首尾各 4 位，中间遮罩。实际安装先查询只读用户信息接口验证 Key，失败时不写入运行文件、Skill 或客户端配置。仅未提供环境变量 Key 的手动交互输入支持失败后重输；空输入不发送请求，`Ctrl+C` 取消。环境变量 Key 验证失败时即使在交互终端也退出；非交互失败同样以退出码 1 结束，不自动重试。
+- `node dist/src/index.js install`：方向键移动、空格多选客户端、回车确认，再选择安装范围，一次安装同包 Skill 与 MCP。范围菜单只提供所选客户端共同支持的范围，初始选中 global；显式 `--agents`、`--scope` 跳过对应菜单，非交互未指定范围时仍用 global。优先读取环境变量 `ZHIZHUIP_TOKEN`，缺失时交互输入并显示首尾各 4 位，中间遮罩。实际安装先查询只读用户信息接口验证 Key，失败时不写入运行文件、Skill 或客户端配置。仅未提供环境变量 Key 的手动交互输入支持失败后重输；空输入不发送请求，选择或输入时均可用 `Ctrl+C` 取消。环境变量 Key 验证失败时即使在交互终端也退出；非交互失败同样以退出码 1 结束，不自动重试。
 - `node dist/src/index.js install --agents claude-code,cursor,codex --scope global`：明确客户端与范围；支持 `--readonly`、`--list`、`--dry-run`、`--help`。非交互执行必须指定 `--agents` 并提供环境变量 Key；`--help`、`--list`、`--dry-run` 不读 Key、不发送验证请求。
 - `install` 适配 Claude Code、Cursor、Codex、Gemini CLI、OpenCode、经典 Windsurf、Cline 的 VS Code 扩展、VS Code Copilot；Cline 与 Windsurf 仅 global，其余支持 project/global。具体路径见 [USAGE](USAGE.md) 与 [src/install.ts](src/install.ts)。`--list` 只检测相关目录，不证明软件已安装或已加载配置。
 - `node dist/src/index.js setup [--readonly] [--npx]`：仅打印 MCP 配置片段，不写配置或安装 Skill。`setup --token ...` 会把 Key 放进命令参数及输出，只供维护者明确需要时使用；通常优先 `install`。
